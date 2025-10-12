@@ -10,13 +10,19 @@
 
         <form method="POST" class="auth-form">
             <div class="form-group">
+                <label class="form-label">👤 Имя пользователя</label>
+                <input type="text" name="username" class="form-input" placeholder="Ваш уникальный username" required>
+            </div>
+
+            <div class="form-group">
                 <label class="form-label">📧 Email адрес</label>
                 <input type="email" name="email" class="form-input" placeholder="your@email.com" required>
             </div>
 
             <div class="form-group">
                 <label class="form-label">🔑 Пароль</label>
-                <input type="password" name="password" class="form-input" placeholder="Придумайте надежный пароль" required>
+                <input type="password" name="password" class="form-input" placeholder="Придумайте надежный пароль" required
+                       pattern=".{6,}" title="Пароль должен содержать минимум 6 символов">
             </div>
 
             <div class="form-group">
@@ -28,6 +34,15 @@
                 🎯 Создать аккаунт
             </button>
         </form>
+
+        <div class="auth-divider">
+            <span>или</span>
+        </div>
+
+        <a href="{{ url_for('google_login') }}" class="btn btn-google" style="width: 100%; margin-bottom: 24px;">
+            <div class="google-icon"></div>
+            Продолжить с Google
+        </a>
 
         <div class="auth-footer" style="text-align: center; margin-top: 32px;">
             <p style="color: var(--text-secondary); margin-bottom: 16px;">
@@ -43,8 +58,125 @@
                 <div>✨ Мгновенные сообщения</div>
                 <div>🎤 Голосовые сообщения</div>
                 <div>🔐 Приватные чаты</div>
+                <div>📞 Видеозвонки</div>
+                <div>📱 Адаптивный дизайн</div>
             </div>
         </div>
     </div>
 </div>
+
+<style>
+.auth-form {
+    space-y: 20px;
+}
+
+/* Индикатор силы пароля */
+.password-strength {
+    height: 4px;
+    border-radius: 2px;
+    margin-top: 8px;
+    transition: all 0.3s ease;
+}
+
+.password-strength.weak {
+    background: var(--danger);
+    width: 33%;
+}
+
+.password-strength.medium {
+    background: var(--warning);
+    width: 66%;
+}
+
+.password-strength.strong {
+    background: var(--success);
+    width: 100%;
+}
+
+/* Анимации */
+@keyframes slideIn {
+    from {
+        opacity: 0;
+        transform: translateY(30px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.auth-container {
+    animation: slideIn 0.6s ease-out;
+}
+</style>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Валидация пароля в реальном времени
+    const passwordInput = document.querySelector('input[name="password"]');
+    const confirmInput = document.querySelector('input[name="confirm_password"]');
+    
+    function validatePassword() {
+        const password = passwordInput.value;
+        const confirm = confirmInput.value;
+        
+        if (confirm && password !== confirm) {
+            confirmInput.style.borderColor = 'var(--danger)';
+            confirmInput.style.boxShadow = '0 0 0 3px rgba(239, 68, 68, 0.1)';
+        } else {
+            confirmInput.style.borderColor = '';
+            confirmInput.style.boxShadow = '';
+        }
+        
+        // Индикатор силы пароля
+        let strength = 'weak';
+        if (password.length >= 8) strength = 'medium';
+        if (password.length >= 12 && /[A-Z]/.test(password) && /[0-9]/.test(password)) {
+            strength = 'strong';
+        }
+    }
+    
+    if (passwordInput && confirmInput) {
+        passwordInput.addEventListener('input', validatePassword);
+        confirmInput.addEventListener('input', validatePassword);
+    }
+
+    // Валидация формы
+    const form = document.querySelector('.auth-form');
+    if (form) {
+        form.addEventListener('submit', function(e) {
+            const username = document.querySelector('input[name="username"]').value;
+            const email = document.querySelector('input[name="email"]').value;
+            const password = document.querySelector('input[name="password"]').value;
+            const confirm = document.querySelector('input[name="confirm_password"]').value;
+            
+            if (!username || !email || !password || !confirm) {
+                e.preventDefault();
+                showNotification('Ошибка', 'Заполните все поля', 'error');
+                return;
+            }
+            
+            if (password !== confirm) {
+                e.preventDefault();
+                showNotification('Ошибка', 'Пароли не совпадают', 'error');
+                return;
+            }
+            
+            if (password.length < 6) {
+                e.preventDefault();
+                showNotification('Ошибка', 'Пароль должен содержать минимум 6 символов', 'error');
+                return;
+            }
+        });
+    }
+
+    // Автофокус на поле username
+    const usernameInput = document.querySelector('input[name="username"]');
+    if (usernameInput) {
+        setTimeout(() => {
+            usernameInput.focus();
+        }, 100);
+    }
+});
+</script>
 {% endblock %}
