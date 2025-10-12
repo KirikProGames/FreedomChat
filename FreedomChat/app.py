@@ -74,6 +74,8 @@ class User(db.Model, UserMixin):
     bio = db.Column(db.Text, default='')
     phone = db.Column(db.String(20))
     google_id = db.Column(db.String(100), unique=True, nullable=True)
+    badge = db.Column(db.String(20), default='')  # red, blue, yellow, purple, admin
+    is_super_admin = db.Column(db.Boolean, default=False)  # Создатель мессенджера
     
     messages = db.relationship('Message', backref='author', lazy=True)
     chat_rooms = db.relationship('ChatRoom', secondary='user_chatroom', backref='members')
@@ -95,7 +97,10 @@ class User(db.Model, UserMixin):
             'online': self.online,
             'status': self.status,
             'bio': self.bio,
-            'last_seen': self.last_seen.isoformat() if self.last_seen else None
+            'last_seen': self.last_seen.isoformat() if self.last_seen else None,
+            'badge': self.badge,
+            'is_admin': self.is_admin,
+            'is_super_admin': self.is_super_admin
         }
     
     def get_role_in_chat(self, chat_room_id):
@@ -104,6 +109,16 @@ class User(db.Model, UserMixin):
             chat_room_id=chat_room_id
         ).first()
         return association.role if association else None
+    
+    def get_badge_info(self):
+        badges = {
+            'red': {'emoji': '🔴', 'title': 'Создатель мессенджера', 'color': '#ff4444'},
+            'blue': {'emoji': '🔵', 'title': 'Владелец крупного канала', 'color': '#4444ff'},
+            'yellow': {'emoji': '🟡', 'title': 'Популярная личность', 'color': '#ffaa00'},
+            'purple': {'emoji': '🟣', 'title': 'Администратор', 'color': '#aa44ff'},
+            'admin': {'emoji': '⚡', 'title': 'Системный администратор', 'color': '#00ff00'}
+        }
+        return badges.get(self.badge, {})
 
 class ChatRoom(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -185,6 +200,139 @@ def generate_code(length=6):
 
 def generate_invite_link():
     return ''.join(random.choice(string.ascii_lowercase + string.digits) for _ in range(10))
+
+# Админ-маршруты
+@app.route('/admin')
+@login_required
+def admin_panel():
+    if not current_user.is_super_admin and not current_user.is_admin:
+        flash('Доступ запрещен')
+        return redirect(url_for('dashboard'))
+    
+    users = User.query.all()
+    chat_rooms_count = ChatRoom.query.count()
+    online_users_count = User.query.filter_by(online=True).count()
+    admins_count = User.query.filter_by(is_admin=True).count()
+    
+    return render_template('admin_panel.html', 
+                         users=users, 
+                         chat_rooms_count=chat_rooms_count,
+                         online_users_count=online_users_count,
+                         admins_count=admins_count)
+
+@app.route('/admin/users')
+@login_required
+def admin_users():
+    if not current_user.is_super_admin and not current_user.is_admin:
+        return jsonify({'error': 'Доступ запрещен'}), 403
+    
+    users = User.query.all()
+    return jsonify([{
+        'id': user.id,
+        'username': user.username,
+        'email': user.email,
+        'online': user.online,
+        'is_admin': user.is_admin,
+        'is_super_admin': user.is_super_admin,
+        'badge': user.badge,
+        'created_at': user.created_at.isoformat(),
+        'last_seen': user.last_seen.isoformat() if user.last_seen else None
+    } for user in users])
+
+@app.route('/admin/update_user/<int:user_id>', methods=['POST'])
+@login_required
+def admin_update_user(user_id):
+    if not current_user.is_super_admin:
+        flash('Только создатель мессенджера может изменять пользователей')
+        return redirect(url_for('admin_panel'))
+    
+    target_user = User.query.get_or_404(user_id)
+    
+    # Защита от изменения самого себя
+    if target_user.id == current_user.id:
+        flash('Нельзя изменять свой собственный профиль через админ-панель')
+        return redirect(url_for('admin_panel'))
+    
+    action = request.form.get('action')
+    
+    if action == 'toggle_admin':
+        target_user.is_admin = not target_user.is_admin
+        if target_user.is_admin and not target_user.badge:
+            target_user.badge = 'purple'
+        db.session.commit()
+        flash(f'Статус администратора для {target_user.username} изменен')
+    
+    elif action == 'set_badge':
+        badge = request.form.get('badge')
+        if badge in ['red', 'blue', 'yellow', 'purple', 'admin', '']:
+            target_user.badge = badge
+            db.session.commit()
+            flash(f'Галочка для {target_user.username} обновлена')
+    
+    elif action == 'update_profile':
+        username = request.form.get('username')
+        email = request.form.get('email')
+        status = request.form.get('status')
+        
+        if username and username != target_user.username:
+            existing_user = User.query.filter_by(username=username).first()
+            if existing_user and existing_user.id != target_user.id:
+                flash('Этот username уже занят')
+            else:
+                target_user.username = username
+        
+        if email and email != target_user.email:
+            existing_user = User.query.filter_by(email=email).first()
+            if existing_user and existing_user.id != target_user.id:
+                flash('Этот email уже занят')
+            else:
+                target_user.email = email
+        
+        target_user.status = status
+        db.session.commit()
+        flash(f'Профиль {target_user.username} обновлен')
+    
+    elif action == 'delete_user':
+        # Нельзя удалить самого себя
+        if target_user.id == current_user.id:
+            flash('Нельзя удалить свой собственный аккаунт')
+        else:
+            db.session.delete(target_user)
+            db.session.commit()
+            flash(f'Пользователь {target_user.username} удален')
+    
+    return redirect(url_for('admin_panel'))
+
+@app.route('/admin/create_user', methods=['POST'])
+@login_required
+def admin_create_user():
+    if not current_user.is_super_admin:
+        flash('Только создатель мессенджера может создавать пользователей')
+        return redirect(url_for('admin_panel'))
+    
+    username = request.form.get('username')
+    email = request.form.get('email')
+    password = request.form.get('password')
+    is_admin = request.form.get('is_admin') == 'on'
+    badge = request.form.get('badge', '')
+    
+    if User.query.filter_by(email=email).first():
+        flash('Пользователь с таким email уже существует')
+        return redirect(url_for('admin_panel'))
+    
+    user = User(
+        username=username,
+        email=email,
+        is_admin=is_admin,
+        badge=badge
+    )
+    user.set_password(password)
+    
+    db.session.add(user)
+    db.session.commit()
+    flash(f'Пользователь {username} создан')
+    
+    return redirect(url_for('admin_panel'))
 
 # Новые маршруты для управления чатами
 @app.route('/chat/<int:chat_id>/settings')
@@ -500,6 +648,7 @@ def handle_send_message(data):
             'user_id': current_user.id,
             'user_email': current_user.email,
             'user_avatar': current_user.avatar,
+            'user_badge': current_user.badge,
             'timestamp': new_message.timestamp.isoformat(),
             'type': message_type,
             'file_path': file_path,
@@ -687,6 +836,7 @@ def handle_voice_message(data):
             'user_id': current_user.id,
             'user_email': current_user.email,
             'user_avatar': current_user.avatar,
+            'user_badge': current_user.badge,
             'timestamp': voice_message.timestamp.isoformat(),
             'type': 'voice',
             'file_path': f'/uploads/voice/{filename}',
@@ -969,21 +1119,34 @@ with app.app_context():
     try:
         db.create_all()
         
-        # Проверяем существование колонки google_id
+        # Проверяем существование новых колонок
         from sqlalchemy import inspect
         inspector = inspect(db.engine)
         columns = [col['name'] for col in inspector.get_columns('user')]
         
-        if 'google_id' not in columns:
-            db.engine.execute('ALTER TABLE user ADD COLUMN google_id VARCHAR(100)')
-            print("Added google_id column to user table")
+        if 'badge' not in columns:
+            db.engine.execute('ALTER TABLE user ADD COLUMN badge VARCHAR(20) DEFAULT ""')
+            print("Added badge column to user table")
+        
+        if 'is_super_admin' not in columns:
+            db.engine.execute('ALTER TABLE user ADD COLUMN is_super_admin BOOLEAN DEFAULT FALSE')
+            print("Added is_super_admin column to user table")
+        
+        # Создаем супер-админа если его нет
+        admin_user = User.query.filter_by(email='admin@freedomchat.com').first()
+        if admin_user:
+            admin_user.is_super_admin = True
+            admin_user.badge = 'red'
+            admin_user.is_admin = True
         
         # Создаем тестовых пользователей если их нет
         if not User.query.filter_by(email='admin@freedomchat.com').first():
             admin = User(
                 email='admin@freedomchat.com',
-                username='admin',
-                is_admin=True
+                username='Admin',
+                is_admin=True,
+                is_super_admin=True,
+                badge='red'
             )
             admin.set_password('Admin123!')
             db.session.add(admin)
@@ -992,6 +1155,17 @@ with app.app_context():
             test_user = User(email='test@example.com', username='testuser')
             test_user.set_password('123456')
             db.session.add(test_user)
+        
+        # Создаем тестового админа
+        if not User.query.filter_by(email='moderator@freedomchat.com').first():
+            moderator = User(
+                email='moderator@freedomchat.com',
+                username='Moderator',
+                is_admin=True,
+                badge='purple'
+            )
+            moderator.set_password('Moderator123!')
+            db.session.add(moderator)
         
         db.session.commit()
         print("Database initialized successfully")
@@ -1003,16 +1177,27 @@ with app.app_context():
         
         admin = User(
             email='admin@freedomchat.com',
-            username='admin',
-            is_admin=True
+            username='Admin',
+            is_admin=True,
+            is_super_admin=True,
+            badge='red'
         )
         admin.set_password('Admin123!')
         
         test_user = User(email='test@example.com', username='testuser')
         test_user.set_password('123456')
         
+        moderator = User(
+            email='moderator@freedomchat.com',
+            username='Moderator',
+            is_admin=True,
+            badge='purple'
+        )
+        moderator.set_password('Moderator123!')
+        
         db.session.add(admin)
         db.session.add(test_user)
+        db.session.add(moderator)
         db.session.commit()
         print("Database recreated successfully")
 
