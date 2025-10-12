@@ -74,12 +74,43 @@
                 }
             }, 5000);
         }
-        
+
+        // Улучшенная обработка ошибок
+        window.addEventListener('error', function(e) {
+            console.error('Global error:', e.error);
+            showNotification('Ошибка', 'Произошла непредвиденная ошибка', 'error');
+        });
+
         // Горячие клавиши
         document.addEventListener('keydown', function(e) {
             if (e.ctrlKey && e.key === 'Enter') {
                 const sendBtn = document.querySelector('.btn-send');
                 if (sendBtn) sendBtn.click();
+            }
+            
+            // Ctrl+/ для справки
+            if (e.ctrlKey && e.key === '/') {
+                e.preventDefault();
+                showNotification('Горячие клавиши', 'Ctrl+Enter - отправить сообщение\nCtrl+/ - эта справка');
+            }
+        });
+
+        // Проверка поддержки WebRTC
+        function checkWebRTCSupport() {
+            if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+                showNotification('Внимание', 'Ваш браузер не поддерживает видеозвонки. Обновите браузер.', 'warning');
+                return false;
+            }
+            return true;
+        }
+
+        // Инициализация при загрузке
+        document.addEventListener('DOMContentLoaded', function() {
+            checkWebRTCSupport();
+            
+            // Улучшенная обработка касаний для мобильных
+            if ('ontouchstart' in window) {
+                document.documentElement.classList.add('touch-device');
             }
         });
     </script>
