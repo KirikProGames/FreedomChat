@@ -511,7 +511,7 @@ def handle_send_message(data):
     except Exception as e:
         emit('error', {'message': str(e)})
 
-# Существующие маршруты (остаются без изменений)
+# Существующие маршруты
 @app.route('/search_users')
 @login_required
 def search_users():
