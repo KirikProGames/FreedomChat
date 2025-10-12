@@ -2,229 +2,659 @@
 
 {% block content %}
 <div class="call-container">
-    <!-- Call Header -->
+    <!-- Header -->
     <div class="call-header">
         <div style="display: flex; align-items: center; gap: 16px;">
             <a href="{{ url_for('chat', chat_id=chat_room.id) }}" class="btn btn-secondary" 
-               style="background: rgba(255,255,255,0.2); border-color: rgba(255,255,255,0.3); color: white;">
-                ← Назад
+               style="background: rgba(255,255,255,0.2); border-color: rgba(255,255,255,0.3); color: white; padding: 10px;">
+                ← Назад в чат
             </a>
             <div>
                 <h1 style="font-size: 20px; font-weight: 700; margin-bottom: 4px;">
-                    📞 Звонок в {{ chat_room.name }}
+                    📞 Видеозвонок в {{ chat_room.name }}
                 </h1>
                 <div style="font-size: 14px; opacity: 0.9;" id="call-status">
-                    Подключение...
+                    🔒 Jitsi Meet • Готов к подключению
                 </div>
             </div>
         </div>
         
-        <div style="display: flex; gap: 12px;">
+        <div style="display: flex; gap: 12px; align-items: center;">
             <div class="call-timer" id="call-timer">00:00</div>
+            <button class="btn btn-secondary" onclick="showInviteModal()" 
+                    style="background: rgba(255,255,255,0.2); border-color: rgba(255,255,255,0.3); color: white;">
+                📋 Пригласить
+            </button>
+            <button class="btn btn-secondary" onclick="toggleFullscreen()" 
+                    style="background: rgba(255,255,255,0.2); border-color: rgba(255,255,255,0.3); color: white;">
+                ⛶ Полный экран
+            </button>
         </div>
     </div>
 
-    <!-- Video Area -->
-    <div class="video-container">
-        <!-- Remote Video -->
-        <div class="video-wrapper">
-            <video id="remoteVideo" autoplay playsinline 
-                   style="width: 100%; height: 100%; border-radius: 16px; background: var(--bg-secondary);"></video>
-            <div class="video-overlay" id="remote-overlay">
-                <div class="user-info">
-                    <div class="user-avatar">👤</div>
-                    <div class="user-name">Участник</div>
+    <!-- Jitsi Meet Container -->
+    <div id="jitsi-container" style="width: 100%; height: calc(100vh - 200px); background: var(--bg-secondary); border-radius: 16px; overflow: hidden; position: relative;">
+        <!-- Loading State -->
+        <div id="loading-state" style="display: flex; align-items: center; justify-content: center; height: 100%; flex-direction: column; gap: 20px; padding: 40px;">
+            <div style="font-size: 64px;">🎥</div>
+            <h2 style="color: var(--text-primary); margin-bottom: 8px; text-align: center;">Видеозвонок FreedomChat</h2>
+            <p style="color: var(--text-secondary); text-align: center; max-width: 500px; line-height: 1.6;">
+                Используем <strong>Jitsi Meet</strong> для качественных видеозвонков с голосовой связью<br>
+                ✅ Голос работает • ✅ Видео работает • ✅ Без установки
+            </p>
+            
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; margin: 20px 0; width: 100%; max-width: 400px;">
+                <div style="text-align: center; padding: 16px; background: var(--bg-primary); border-radius: 12px;">
+                    <div style="font-size: 24px; margin-bottom: 8px;">🎤</div>
+                    <div style="font-size: 14px; font-weight: 600;">Голос</div>
+                    <div style="font-size: 12px; color: var(--text-secondary);">Кристальная связь</div>
                 </div>
+                <div style="text-align: center; padding: 16px; background: var(--bg-primary); border-radius: 12px;">
+                    <div style="font-size: 24px; margin-bottom: 8px;">🔒</div>
+                    <div style="font-size: 14px; font-weight: 600;">Безопасно</div>
+                    <div style="font-size: 12px; color: var(--text-secondary);">Шифрование</div>
+                </div>
+                <div style="text-align: center; padding: 16px; background: var(--bg-primary); border-radius: 12px;">
+                    <div style="font-size: 24px; margin-bottom: 8px;">📹</div>
+                    <div style="font-size: 14px; font-weight: 600;">Видео</div>
+                    <div style="font-size: 12px; color: var(--text-secondary);">HD качество</div>
+                </div>
+            </div>
+
+            <div style="display: flex; gap: 12px; flex-wrap: wrap; justify-content: center;">
+                <button class="btn btn-primary" onclick="startJitsiCall()" style="min-width: 160px;">
+                    🚀 Начать звонок
+                </button>
+                <button class="btn btn-secondary" onclick="testAudioVideo()" style="min-width: 160px;">
+                    🎛️ Проверить устройства
+                </button>
+            </div>
+
+            <div style="margin-top: 20px; padding: 16px; background: var(--bg-primary); border-radius: 12px; max-width: 400px;">
+                <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 8px;">
+                    <span style="font-size: 20px;">💡</span>
+                    <strong style="color: var(--text-primary);">Совет:</strong>
+                </div>
+                <p style="font-size: 14px; color: var(--text-secondary); margin: 0; line-height: 1.5;">
+                    Разрешите доступ к камере и микрофону когда браузер попросит
+                </p>
             </div>
         </div>
 
-        <!-- Local Video -->
-        <div class="local-video-wrapper">
-            <video id="localVideo" autoplay playsinline muted
-                   style="width: 100%; height: 100%; border-radius: 12px; background: var(--bg-secondary);"></video>
-            <div class="video-overlay">
-                <div class="user-info">
-                    <div class="user-avatar">👤</div>
-                    <div class="user-name">Вы</div>
-                </div>
-            </div>
-        </div>
+        <!-- Jitsi will be loaded here -->
     </div>
 
-    <!-- Call Controls -->
-    <div class="call-controls">
-        <button class="control-btn mic-btn" onclick="toggleMic()" title="Микрофон">
+    <!-- Quick Controls -->
+    <div class="call-controls" id="quick-controls" style="display: none;">
+        <button class="control-btn" id="toggle-audio" onclick="toggleAudio()" title="Микрофон">
             🎤
         </button>
-        
-        <button class="control-btn camera-btn" onclick="toggleCamera()" title="Камера">
+        <button class="control-btn" id="toggle-video" onclick="toggleVideo()" title="Камера">
             📹
         </button>
-        
-        <button class="control-btn screen-btn" onclick="toggleScreenShare()" title="Поделиться экраном">
+        <button class="control-btn" id="toggle-screen" onclick="toggleScreenShare()" title="Демонстрация экрана">
             🖥️
         </button>
-        
-        <button class="control-btn end-call-btn" onclick="endCall()" title="Завершить звонок">
+        <button class="control-btn end-call-btn" onclick="endJitsiCall()" title="Завершить звонок">
             📞
         </button>
-        
-        <button class="control-btn chat-btn" onclick="toggleChat()" title="Чат">
+        <button class="control-btn" onclick="toggleChat()" title="Чат">
             💬
+        </button>
+        <button class="control-btn" onclick="toggleParticipants()" title="Участники">
+            👥
         </button>
     </div>
 
-    <!-- Participants -->
-    <div class="participants-sidebar" id="participants-sidebar">
-        <h3 style="margin-bottom: 16px;">Участники (1)</h3>
-        <div class="participants-list">
-            <div class="participant">
-                <div class="participant-avatar">👤</div>
-                <div class="participant-info">
-                    <div class="participant-name">{{ current_user.username or current_user.email }}</div>
-                    <div class="participant-status">Вы</div>
+    <!-- Invite Modal -->
+    <div id="invite-modal" class="call-modal" style="display: none;">
+        <div class="call-modal-content">
+            <div class="call-modal-icon">📨</div>
+            <h2>Пригласить в звонок</h2>
+            <p style="color: var(--text-secondary); margin-bottom: 20px; text-align: center;">
+                Отправьте эту ссылку участникам чата. Они смогут присоединиться к звонку сразу после перехода по ссылке.
+            </p>
+            
+            <div style="display: flex; gap: 10px; margin-bottom: 24px;">
+                <input type="text" id="invite-link" readonly 
+                       style="flex: 1; padding: 12px 16px; border: 1px solid var(--border); border-radius: 12px; background: var(--bg-primary); color: var(--text-primary); font-size: 14px;"
+                       value="{{ url_for('video_call', chat_id=chat_room.id, _external=True ) }}">
+                <button onclick="copyInviteLink()" class="btn btn-primary" style="white-space: nowrap;">
+                    📋 Копировать
+                </button>
+            </div>
+
+            <div style="background: var(--bg-secondary); padding: 16px; border-radius: 12px; margin-bottom: 20px;">
+                <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
+                    <span style="font-size: 16px;">💡</span>
+                    <strong style="color: var(--text-primary); font-size: 14px;">Быстрые способы пригласить:</strong>
                 </div>
-                <div class="participant-indicator online"></div>
+                <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+                    <button class="btn btn-secondary" onclick="shareTelegram()" style="font-size: 12px; padding: 8px 12px;">
+                        📱 Telegram
+                    </button>
+                    <button class="btn btn-secondary" onclick="shareWhatsApp()" style="font-size: 12px; padding: 8px 12px;">
+                        💬 WhatsApp
+                    </button>
+                    <button class="btn btn-secondary" onclick="copyToClipboardWithNotification()" style="font-size: 12px; padding: 8px 12px;">
+                        📧 Email
+                    </button>
+                </div>
+            </div>
+
+            <div style="display: flex; gap: 10px; justify-content: flex-end;">
+                <button onclick="closeInviteModal()" class="btn btn-secondary">
+                    Закрыть
+                </button>
             </div>
         </div>
     </div>
 
-    <!-- Chat Sidebar -->
-    <div class="chat-sidebar" id="chat-sidebar" style="display: none;">
-        <div class="chat-sidebar-header">
-            <h3>Чат звонка</h3>
-            <button class="close-chat" onclick="toggleChat()">×</button>
-        </div>
-        <div class="call-chat-messages" id="call-chat-messages">
-            <!-- Сообщения чата -->
-        </div>
-        <div class="call-chat-input">
-            <input type="text" placeholder="Сообщение..." id="call-chat-input">
-            <button onclick="sendCallMessage()">➤</button>
+    <!-- Device Test Modal -->
+    <div id="device-test-modal" class="call-modal" style="display: none;">
+        <div class="call-modal-content" style="max-width: 600px;">
+            <h2 style="margin-bottom: 20px;">🎛️ Проверка устройств</h2>
+            
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 24px;">
+                <!-- Camera Test -->
+                <div style="background: var(--bg-secondary); padding: 20px; border-radius: 12px;">
+                    <h4 style="margin-bottom: 12px; color: var(--text-primary);">📹 Камера</h4>
+                    <video id="camera-test" autoplay muted style="width: 100%; height: 120px; background: var(--bg-primary); border-radius: 8px; margin-bottom: 12px;"></video>
+                    <select id="camera-select" style="width: 100%; padding: 8px; border: 1px solid var(--border); border-radius: 8px; background: var(--bg-primary); color: var(--text-primary); margin-bottom: 8px;">
+                        <option value="">Выберите камеру...</option>
+                    </select>
+                    <button onclick="testCamera()" class="btn btn-secondary" style="width: 100%; font-size: 12px; padding: 8px;">
+                        Проверить камеру
+                    </button>
+                </div>
+
+                <!-- Microphone Test -->
+                <div style="background: var(--bg-secondary); padding: 20px; border-radius: 12px;">
+                    <h4 style="margin-bottom: 12px; color: var(--text-primary);">🎤 Микрофон</h4>
+                    <div id="audio-level" style="height: 120px; background: var(--bg-primary); border-radius: 8px; margin-bottom: 12px; display: flex; align-items: end; padding: 8px;">
+                        <div id="audio-visualizer" style="background: var(--primary); width: 100%; height: 0%; border-radius: 4px; transition: height 0.1s;"></div>
+                    </div>
+                    <select id="microphone-select" style="width: 100%; padding: 8px; border: 1px solid var(--border); border-radius: 8px; background: var(--bg-primary); color: var(--text-primary); margin-bottom: 8px;">
+                        <option value="">Выберите микрофон...</option>
+                    </select>
+                    <button onclick="testMicrophone()" class="btn btn-secondary" style="width: 100%; font-size: 12px; padding: 8px;">
+                        Проверить микрофон
+                    </button>
+                </div>
+            </div>
+
+            <div style="display: flex; gap: 10px; justify-content: flex-end;">
+                <button onclick="closeDeviceTest()" class="btn btn-primary">
+                    Готово
+                </button>
+            </div>
         </div>
     </div>
 </div>
 
-<!-- Incoming Call Modal -->
-<div class="call-modal" id="incoming-call-modal" style="display: none;">
-    <div class="call-modal-content">
-        <div class="call-modal-icon">📞</div>
-        <h2>Входящий звонок</h2>
-        <p id="caller-name">User</p>
-        <div class="call-modal-buttons">
-            <button class="btn btn-primary" onclick="answerCall()">📞 Ответить</button>
-            <button class="btn btn-secondary" onclick="rejectCall()">❌ Отклонить</button>
-        </div>
-    </div>
-</div>
+<!-- Jitsi Meet API -->
+<script src="https://meet.jit.si/external_api.js"></script>
+
+<script>
+// Jitsi Meet Integration
+let jitsiApi = null;
+let callStartTime = null;
+let callTimer = null;
+let audioContext = null;
+let analyser = null;
+let microphone = null;
+let javascriptNode = null;
+
+// Генерируем уникальное имя комнаты
+const roomName = `FreedomChat-{{ chat_room.id }}-{{ chat_room.name|replace(" ", "-")|replace(/[^a-zA-Z0-9-]/g, "") }}-${Date.now()}`;
+
+// Запуск Jitsi звонка
+function startJitsiCall() {
+    try {
+        updateCallStatus('Подключение к Jitsi Meet...');
+        
+        const domain = 'meet.jit.si';
+        const options = {
+            roomName: roomName,
+            width: '100%',
+            height: '100%',
+            parentNode: document.getElementById('jitsi-container'),
+            configOverwrite: {
+                prejoinPageEnabled: false,
+                startWithAudioMuted: false,
+                startWithVideoMuted: false,
+                disableModeratorIndicator: false,
+                startScreenSharing: false,
+                enableEmailInStats: false,
+                enableWelcomePage: false,
+                enableClosePage: false,
+                defaultLanguage: 'ru',
+                disableThirdPartyRequests: true,
+                enableNoAudioDetection: true,
+                enableNoisyMicDetection: true,
+                resolution: 720,
+                constraints: {
+                    video: {
+                        height: { ideal: 720, max: 1080, min: 240 }
+                    }
+                }
+            },
+            interfaceConfigOverwrite: {
+                TOOLBAR_BUTTONS: [
+                    'microphone', 'camera', 'closedcaptions', 'desktop', 'fullscreen',
+                    'fodeviceselection', 'hangup', 'profile', 'chat', 'recording',
+                    'livestreaming', 'etherpad', 'sharedvideo', 'settings', 'raisehand',
+                    'videoquality', 'filmstrip', 'invite', 'feedback', 'stats', 'shortcuts',
+                    'tileview', 'videobackgroundblur', 'download', 'help', 'mute-everyone',
+                    'mute-video-everyone', 'security'
+                ],
+                SETTINGS_SECTIONS: ['devices', 'language', 'moderator', 'profile', 'calendar'],
+                SHOW_JITSI_WATERMARK: false,
+                SHOW_WATERMARK_FOR_GUESTS: false,
+                SHOW_BRAND_WATERMARK: false,
+                BRAND_WATERMARK_LINK: '',
+                SHOW_POWERED_BY: false,
+                SHOW_PROMOTIONAL_CLOSE_PAGE: false,
+                SHOW_CHROME_EXTENSION_BANNER: false,
+                MOBILE_APP_PROMO: false,
+                HIDE_INVITE_MORE_HEADER: false,
+                DISABLE_VIDEO_BACKGROUND: false,
+                DISABLE_FOCUS_INDICATOR: false,
+                DISABLE_DOMINANT_SPEAKER_INDICATOR: false,
+                VERTICAL_FILMSTRIP: true,
+                CLOSE_PAGE_GUEST_HINT: false,
+                SHOW_DEEP_LINKING_IMAGE: false,
+                GENERATE_ROOMNAMES_ON_WELCOME_PAGE: false,
+                DISPLAY_WELCOME_PAGE_CONTENT: false,
+                APP_NAME: 'FreedomChat',
+                NATIVE_APP_NAME: 'FreedomChat',
+                DEFAULT_BACKGROUND: '#0f172a'
+            },
+            userInfo: {
+                displayName: '{{ current_user.username or current_user.email.split("@")[0] }}',
+                email: '{{ current_user.email }}'
+            }
+        };
+
+        // Скрываем loading state
+        document.getElementById('loading-state').style.display = 'none';
+        
+        // Инициализируем Jitsi Meet
+        jitsiApi = new JitsiMeetExternalAPI(domain, options);
+        
+        // Обработчики событий Jitsi
+        jitsiApi.addEventListener('videoConferenceJoined', () => {
+            console.log('Joined conference');
+            updateCallStatus('Звонок активен');
+            startCallTimer();
+            document.getElementById('quick-controls').style.display = 'flex';
+            
+            // Показываем уведомление
+            showNotification('Успех', 'Вы подключились к видеозвонку!', 'success');
+        });
+
+        jitsiApi.addEventListener('videoConferenceLeft', () => {
+            console.log('Left conference');
+            updateCallStatus('Звонок завершен');
+            stopCallTimer();
+            showNotification('Информация', 'Вы покинули видеозвонок', 'info');
+            
+            // Возвращаем в чат через 2 секунды
+            setTimeout(() => {
+                window.location.href = "{{ url_for('chat', chat_id=chat_room.id) }}";
+            }, 2000);
+        });
+
+        jitsiApi.addEventListener('participantJoined', (participant) => {
+            console.log('Participant joined:', participant);
+            showNotification('Участник', `${participant.displayName} присоединился`, 'info');
+        });
+
+        jitsiApi.addEventListener('participantLeft', (participant) => {
+            console.log('Participant left:', participant);
+            showNotification('Участник', `${participant.displayName} покинул звонок`, 'warning');
+        });
+
+        jitsiApi.addEventListener('audioMuteStatusChanged', (muted) => {
+            const btn = document.getElementById('toggle-audio');
+            if (muted.muted) {
+                btn.innerHTML = '🎤❌';
+                btn.title = 'Микрофон выключен';
+            } else {
+                btn.innerHTML = '🎤';
+                btn.title = 'Микрофон включен';
+            }
+        });
+
+        jitsiApi.addEventListener('videoMuteStatusChanged', (muted) => {
+            const btn = document.getElementById('toggle-video');
+            if (muted.muted) {
+                btn.innerHTML = '📹❌';
+                btn.title = 'Камера выключена';
+            } else {
+                btn.innerHTML = '📹';
+                btn.title = 'Камера включена';
+            }
+        });
+
+        jitsiApi.addEventListener('screenSharingStatusChanged', (sharing) => {
+            const btn = document.getElementById('toggle-screen');
+            if (sharing.on) {
+                btn.innerHTML = '🖥️✅';
+                btn.title = 'Демонстрация экрана активна';
+            } else {
+                btn.innerHTML = '🖥️';
+                btn.title = 'Демонстрация экрана';
+            }
+        });
+
+    } catch (error) {
+        console.error('Jitsi initialization error:', error);
+        updateCallStatus('Ошибка подключения');
+        showNotification('Ошибка', 'Не удалось запустить видеозвонок', 'error');
+        
+        // Показываем кнопку повтора
+        document.getElementById('loading-state').innerHTML += `
+            <button class="btn btn-primary" onclick="startJitsiCall()" style="margin-top: 20px;">
+                🔄 Попробовать снова
+            </button>
+        `;
+    }
+}
+
+// Управление звонком
+function toggleAudio() {
+    if (jitsiApi) {
+        jitsiApi.executeCommand('toggleAudio');
+    }
+}
+
+function toggleVideo() {
+    if (jitsiApi) {
+        jitsiApi.executeCommand('toggleVideo');
+    }
+}
+
+function toggleScreenShare() {
+    if (jitsiApi) {
+        jitsiApi.executeCommand('toggleShareScreen');
+    }
+}
+
+function toggleChat() {
+    if (jitsiApi) {
+        jitsiApi.executeCommand('toggleChat');
+    }
+}
+
+function toggleParticipants() {
+    if (jitsiApi) {
+        jitsiApi.executeCommand('toggleParticipants');
+    }
+}
+
+function endJitsiCall() {
+    if (jitsiApi) {
+        jitsiApi.dispose();
+    }
+    window.location.href = "{{ url_for('chat', chat_id=chat_room.id) }}";
+}
+
+// Таймер звонка
+function startCallTimer() {
+    callStartTime = Date.now();
+    callTimer = setInterval(() => {
+        const elapsed = Math.floor((Date.now() - callStartTime) / 1000);
+        const minutes = Math.floor(elapsed / 60);
+        const seconds = elapsed % 60;
+        document.getElementById('call-timer').textContent = 
+            `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+    }, 1000);
+}
+
+function stopCallTimer() {
+    if (callTimer) {
+        clearInterval(callTimer);
+    }
+}
+
+// Приглашения
+function showInviteModal() {
+    document.getElementById('invite-modal').style.display = 'flex';
+}
+
+function closeInviteModal() {
+    document.getElementById('invite-modal').style.display = 'none';
+}
+
+function copyInviteLink() {
+    const linkInput = document.getElementById('invite-link');
+    linkInput.select();
+    linkInput.setSelectionRange(0, 99999);
+    document.execCommand('copy');
+    
+    showNotification('Успех', 'Ссылка скопирована в буфер обмена', 'success');
+}
+
+function copyToClipboardWithNotification() {
+    copyInviteLink();
+}
+
+function shareTelegram() {
+    const text = `Присоединяйтесь к видеозвонку в FreedomChat: ${document.getElementById('invite-link').value}`;
+    window.open(`https://t.me/share/url?url=${encodeURIComponent(document.getElementById('invite-link').value)}&text=${encodeURIComponent(text)}`, '_blank');
+}
+
+function shareWhatsApp() {
+    const text = `Присоединяйтесь к видеозвонку в FreedomChat: ${document.getElementById('invite-link').value}`;
+    window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank');
+}
+
+// Полноэкранный режим
+function toggleFullscreen() {
+    if (!document.fullscreenElement) {
+        document.documentElement.requestFullscreen().catch(err => {
+            console.error('Fullscreen error:', err);
+        });
+    } else {
+        if (document.exitFullscreen) {
+            document.exitFullscreen();
+        }
+    }
+}
+
+// Тестирование устройств
+async function testAudioVideo() {
+    document.getElementById('device-test-modal').style.display = 'flex';
+    await loadDevices();
+}
+
+function closeDeviceTest() {
+    document.getElementById('device-test-modal').style.display = 'none';
+    stopMicrophoneTest();
+    stopCameraTest();
+}
+
+async function loadDevices() {
+    try {
+        const devices = await navigator.mediaDevices.enumerateDevices();
+        
+        const cameras = devices.filter(device => device.kind === 'videoinput');
+        const microphones = devices.filter(device => device.kind === 'audioinput');
+        
+        const cameraSelect = document.getElementById('camera-select');
+        const microphoneSelect = document.getElementById('microphone-select');
+        
+        cameraSelect.innerHTML = '<option value="">Выберите камеру...</option>';
+        microphoneSelect.innerHTML = '<option value="">Выберите микрофон...</option>';
+        
+        cameras.forEach(camera => {
+            const option = document.createElement('option');
+            option.value = camera.deviceId;
+            option.text = camera.label || `Камера ${cameraSelect.length}`;
+            cameraSelect.appendChild(option);
+        });
+        
+        microphones.forEach(microphone => {
+            const option = document.createElement('option');
+            option.value = microphone.deviceId;
+            option.text = microphone.label || `Микрофон ${microphoneSelect.length}`;
+            microphoneSelect.appendChild(option);
+        });
+        
+    } catch (error) {
+        console.error('Error loading devices:', error);
+    }
+}
+
+async function testCamera() {
+    const cameraSelect = document.getElementById('camera-select');
+    const cameraTest = document.getElementById('camera-test');
+    
+    if (cameraSelect.value) {
+        try {
+            const stream = await navigator.mediaDevices.getUserMedia({
+                video: { deviceId: cameraSelect.value }
+            });
+            cameraTest.srcObject = stream;
+        } catch (error) {
+            showNotification('Ошибка', 'Не удалось получить доступ к камере', 'error');
+        }
+    }
+}
+
+function stopCameraTest() {
+    const cameraTest = document.getElementById('camera-test');
+    if (cameraTest.srcObject) {
+        cameraTest.srcObject.getTracks().forEach(track => track.stop());
+    }
+}
+
+async function testMicrophone() {
+    const microphoneSelect = document.getElementById('microphone-select');
+    
+    if (microphoneSelect.value) {
+        try {
+            const stream = await navigator.mediaDevices.getUserMedia({
+                audio: { deviceId: microphoneSelect.value }
+            });
+            setupAudioVisualizer(stream);
+        } catch (error) {
+            showNotification('Ошибка', 'Не удалось получить доступ к микрофону', 'error');
+        }
+    }
+}
+
+function setupAudioVisualizer(stream) {
+    try {
+        // Останавливаем предыдущий визуализатор
+        stopMicrophoneTest();
+        
+        // Создаем AudioContext
+        audioContext = new (window.AudioContext || window.webkitAudioContext)();
+        analyser = audioContext.createAnalyser();
+        microphone = audioContext.createMediaStreamSource(stream);
+        
+        analyser.fftSize = 256;
+        microphone.connect(analyser);
+        
+        javascriptNode = audioContext.createScriptProcessor(2048, 1, 1);
+        analyser.connect(javascriptNode);
+        javascriptNode.connect(audioContext.destination);
+        
+        javascriptNode.onaudioprocess = function() {
+            const array = new Uint8Array(analyser.frequencyBinCount);
+            analyser.getByteFrequencyData(array);
+            
+            let values = 0;
+            for (let i = 0; i < array.length; i++) {
+                values += array[i];
+            }
+            
+            const average = values / array.length;
+            const visualizer = document.getElementById('audio-visualizer');
+            visualizer.style.height = Math.min(average * 2, 100) + '%';
+        };
+        
+    } catch (error) {
+        console.error('Audio visualizer error:', error);
+    }
+}
+
+function stopMicrophoneTest() {
+    if (javascriptNode) {
+        javascriptNode.disconnect();
+        javascriptNode = null;
+    }
+    if (microphone) {
+        microphone.disconnect();
+        microphone = null;
+    }
+    if (audioContext) {
+        audioContext.close();
+        audioContext = null;
+    }
+    if (analyser) {
+        analyser.disconnect();
+        analyser = null;
+    }
+}
+
+// Вспомогательные функции
+function updateCallStatus(status) {
+    document.getElementById('call-status').textContent = status;
+}
+
+// Инициализация при загрузке
+document.addEventListener('DOMContentLoaded', function() {
+    // Автоматически запускаем звонок через 1 секунду
+    setTimeout(() => {
+        startJitsiCall();
+    }, 1000);
+    
+    // Обработка закрытия страницы
+    window.addEventListener('beforeunload', function() {
+        if (jitsiApi) {
+            jitsiApi.dispose();
+        }
+        stopMicrophoneTest();
+        stopCameraTest();
+    });
+});
+</script>
 
 <style>
-.call-container {
-    height: 100vh;
-    background: var(--bg-primary);
-    display: flex;
-    flex-direction: column;
-}
-
-.call-header {
-    background: var(--gradient);
-    color: white;
-    padding: 20px 32px;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-}
-
-.call-timer {
-    background: rgba(255,255,255,0.2);
-    padding: 8px 16px;
-    border-radius: 20px;
-    font-weight: 600;
-    font-size: 14px;
-}
-
-.video-container {
-    flex: 1;
-    position: relative;
-    background: var(--bg-secondary);
-    padding: 20px;
-}
-
-.video-wrapper {
-    width: 100%;
-    height: 100%;
-    position: relative;
-    border-radius: 16px;
-    overflow: hidden;
-}
-
-.local-video-wrapper {
-    position: absolute;
-    bottom: 20px;
-    right: 20px;
-    width: 300px;
-    height: 200px;
-    border: 3px solid var(--primary);
-    border-radius: 12px;
-    overflow: hidden;
-    background: var(--bg-card);
-}
-
-.video-overlay {
-    position: absolute;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    background: rgba(0,0,0,0.5);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    color: white;
-}
-
-.user-info {
-    text-align: center;
-}
-
-.user-avatar {
-    font-size: 48px;
-    margin-bottom: 8px;
-}
-
-.user-name {
-    font-weight: 600;
+/* Дополнительные стили для Jitsi */
+#jitsi-container {
+    border: 1px solid var(--border);
 }
 
 .call-controls {
     background: var(--bg-card);
-    padding: 24px;
-    display: flex;
+    padding: 16px;
+    display: none;
     justify-content: center;
-    gap: 16px;
+    gap: 12px;
     border-top: 1px solid var(--border);
 }
 
 .control-btn {
-    width: 60px;
-    height: 60px;
+    width: 50px;
+    height: 50px;
     border-radius: 50%;
     border: none;
-    font-size: 24px;
+    font-size: 20px;
     cursor: pointer;
     transition: all 0.3s ease;
     display: flex;
     align-items: center;
     justify-content: center;
+    background: var(--bg-secondary);
+    color: var(--text-primary);
 }
 
 .control-btn:hover {
     transform: scale(1.1);
-}
-
-.mic-btn, .camera-btn, .screen-btn, .chat-btn {
-    background: var(--bg-secondary);
-    color: var(--text-primary);
 }
 
 .end-call-btn {
@@ -235,123 +665,6 @@
 .control-btn.active {
     background: var(--primary);
     color: white;
-}
-
-.participants-sidebar {
-    position: absolute;
-    top: 20px;
-    right: 20px;
-    background: var(--bg-card);
-    border: 1px solid var(--border);
-    border-radius: 16px;
-    padding: 20px;
-    width: 280px;
-    box-shadow: var(--shadow);
-}
-
-.participants-list {
-    space-y: 12px;
-}
-
-.participant {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    padding: 12px;
-    background: var(--bg-secondary);
-    border-radius: 12px;
-}
-
-.participant-avatar {
-    width: 40px;
-    height: 40px;
-    border-radius: 50%;
-    background: var(--gradient);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    color: white;
-    font-weight: bold;
-}
-
-.participant-info {
-    flex: 1;
-}
-
-.participant-name {
-    font-weight: 600;
-    font-size: 14px;
-}
-
-.participant-status {
-    font-size: 12px;
-    color: var(--text-secondary);
-}
-
-.participant-indicator {
-    width: 8px;
-    height: 8px;
-    border-radius: 50%;
-}
-
-.participant-indicator.online {
-    background: var(--success);
-}
-
-.participant-indicator.offline {
-    background: var(--secondary);
-}
-
-.chat-sidebar {
-    position: absolute;
-    top: 20px;
-    right: 320px;
-    background: var(--bg-card);
-    border: 1px solid var(--border);
-    border-radius: 16px;
-    width: 300px;
-    height: 400px;
-    display: flex;
-    flex-direction: column;
-    box-shadow: var(--shadow);
-}
-
-.chat-sidebar-header {
-    padding: 16px;
-    border-bottom: 1px solid var(--border);
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-}
-
-.close-chat {
-    background: none;
-    border: none;
-    font-size: 20px;
-    cursor: pointer;
-    color: var(--text-secondary);
-}
-
-.call-chat-messages {
-    flex: 1;
-    padding: 16px;
-    overflow-y: auto;
-}
-
-.call-chat-input {
-    padding: 16px;
-    border-top: 1px solid var(--border);
-    display: flex;
-    gap: 8px;
-}
-
-.call-chat-input input {
-    flex: 1;
-    padding: 8px 12px;
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    background: var(--bg-primary);
-    color: var(--text-primary);
 }
 
 .call-modal {
@@ -373,7 +686,7 @@
     border-radius: 24px;
     text-align: center;
     box-shadow: var(--shadow);
-    max-width: 400px;
+    max-width: 500px;
     width: 90%;
 }
 
@@ -382,240 +695,66 @@
     margin-bottom: 20px;
 }
 
-.call-modal-buttons {
-    display: flex;
-    gap: 12px;
-    margin-top: 24px;
-}
-
-.call-modal-buttons .btn {
-    flex: 1;
-}
-
-/* Responsive */
+/* Адаптивность */
 @media (max-width: 768px) {
-    .local-video-wrapper {
-        width: 150px;
-        height: 100px;
+    .call-header {
+        flex-direction: column;
+        gap: 16px;
+        text-align: center;
     }
     
-    .participants-sidebar {
-        display: none;
+    .call-controls {
+        padding: 12px;
+        gap: 8px;
     }
     
     .control-btn {
-        width: 50px;
-        height: 50px;
-        font-size: 20px;
+        width: 44px;
+        height: 44px;
+        font-size: 18px;
     }
+    
+    .call-modal-content {
+        padding: 24px;
+        margin: 20px;
+    }
+}
+
+@media (max-width: 480px) {
+    #loading-state {
+        padding: 20px;
+    }
+    
+    .call-header h1 {
+        font-size: 18px;
+    }
+    
+    .call-timer {
+        font-size: 12px;
+        padding: 6px 12px;
+    }
+}
+
+/* Анимации */
+@keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+.call-modal {
+    animation: fadeIn 0.3s ease;
+}
+
+/* Улучшения для Jitsi */
+.jitsi-container {
+    border-radius: 16px !important;
+    overflow: hidden !important;
+}
+
+/* Улучшения доступности */
+.control-btn:focus-visible {
+    outline: 2px solid var(--primary);
+    outline-offset: 2px;
 }
 </style>
-
-<script>
-// WebRTC звонки
-let localStream;
-let remoteStream;
-let peerConnection;
-let callStartTime;
-let callTimer;
-let currentCallId;
-
-const configuration = {
-    iceServers: [
-        { urls: 'stun:stun.l.google.com:19302' }
-    ]
-};
-
-// Инициализация звонка
-async function startCall() {
-    try {
-        localStream = await navigator.mediaDevices.getUserMedia({ 
-            video: true, 
-            audio: true 
-        });
-        
-        document.getElementById('localVideo').srcObject = localStream;
-        
-        // Создаем PeerConnection
-        peerConnection = new RTCPeerConnection(configuration);
-        
-        // Добавляем локальный поток
-        localStream.getTracks().forEach(track => {
-            peerConnection.addTrack(track, localStream);
-        });
-        
-        // Получаем удаленный поток
-        peerConnection.ontrack = (event) => {
-            remoteStream = event.streams[0];
-            document.getElementById('remoteVideo').srcObject = remoteStream;
-            document.getElementById('remote-overlay').style.display = 'none';
-        };
-        
-        // ICE кандидаты
-        peerConnection.onicecandidate = (event) => {
-            if (event.candidate) {
-                socket.emit('webrtc_ice_candidate', {
-                    call_room: `call_${currentCallId}`,
-                    candidate: event.candidate
-                });
-            }
-        };
-        
-        updateCallStatus('Звонок активен');
-        startCallTimer();
-        
-    } catch (error) {
-        console.error('Error starting call:', error);
-        alert('Ошибка доступа к камере/микрофону');
-    }
-}
-
-// Ответ на звонок
-async function answerCall() {
-    document.getElementById('incoming-call-modal').style.display = 'none';
-    await startCall();
-    
-    // Отправляем ответ
-    socket.emit('answer_call', { call_id: currentCallId });
-}
-
-// Завершение звонка
-function endCall() {
-    if (localStream) {
-        localStream.getTracks().forEach(track => track.stop());
-    }
-    
-    if (peerConnection) {
-        peerConnection.close();
-    }
-    
-    socket.emit('end_call', { call_id: currentCallId });
-    
-    // Возвращаем в чат
-    window.location.href = "{{ url_for('chat', chat_id=chat_room.id) }}";
-}
-
-// Управление медиа
-function toggleMic() {
-    if (localStream) {
-        const audioTrack = localStream.getAudioTracks()[0];
-        audioTrack.enabled = !audioTrack.enabled;
-        document.querySelector('.mic-btn').classList.toggle('active', !audioTrack.enabled);
-    }
-}
-
-function toggleCamera() {
-    if (localStream) {
-        const videoTrack = localStream.getVideoTracks()[0];
-        videoTrack.enabled = !videoTrack.enabled;
-        document.querySelector('.camera-btn').classList.toggle('active', !videoTrack.enabled);
-    }
-}
-
-async function toggleScreenShare() {
-    try {
-        if (!localStream.getVideoTracks()[0].enabled) {
-            const screenStream = await navigator.mediaDevices.getDisplayMedia({
-                video: true,
-                audio: true
-            });
-            
-            const videoTrack = screenStream.getVideoTracks()[0];
-            const sender = peerConnection.getSenders().find(s => 
-                s.track && s.track.kind === 'video'
-            );
-            
-            if (sender) {
-                await sender.replaceTrack(videoTrack);
-            }
-            
-            document.querySelector('.screen-btn').classList.add('active');
-            
-            videoTrack.onended = () => {
-                toggleScreenShare();
-            };
-        }
-    } catch (error) {
-        console.error('Error sharing screen:', error);
-    }
-}
-
-function toggleChat() {
-    const chatSidebar = document.getElementById('chat-sidebar');
-    chatSidebar.style.display = chatSidebar.style.display === 'none' ? 'block' : 'none';
-}
-
-function sendCallMessage() {
-    const input = document.getElementById('call-chat-input');
-    const message = input.value.trim();
-    
-    if (message) {
-        // Отправка сообщения в чат звонка
-        input.value = '';
-    }
-}
-
-function updateCallStatus(status) {
-    document.getElementById('call-status').textContent = status;
-}
-
-function startCallTimer() {
-    callStartTime = Date.now();
-    callTimer = setInterval(() => {
-        const elapsed = Math.floor((Date.now() - callStartTime) / 1000);
-        const minutes = Math.floor(elapsed / 60);
-        const seconds = elapsed % 60;
-        document.getElementById('call-timer').textContent = 
-            `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
-    }, 1000);
-}
-
-// Socket события для звонков
-socket.on('incoming_call', (data) => {
-    currentCallId = data.call_id;
-    document.getElementById('caller-name').textContent = data.caller_name;
-    document.getElementById('incoming-call-modal').style.display = 'flex';
-});
-
-socket.on('call_accepted', (data) => {
-    currentCallId = data.call_id;
-    startCall();
-});
-
-socket.on('call_rejected', () => {
-    alert('Звонок отклонен');
-    window.location.href = "{{ url_for('chat', chat_id=chat_room.id) }}";
-});
-
-socket.on('call_ended', () => {
-    alert('Звонок завершен');
-    window.location.href = "{{ url_for('chat', chat_id=chat_room.id) }}";
-});
-
-// WebRTC события
-socket.on('webrtc_offer', async (data) => {
-    await peerConnection.setRemoteDescription(data.offer);
-    const answer = await peerConnection.createAnswer();
-    await peerConnection.setLocalDescription(answer);
-    
-    socket.emit('webrtc_answer', {
-        call_room: `call_${currentCallId}`,
-        answer: answer
-    });
-});
-
-socket.on('webrtc_answer', async (data) => {
-    await peerConnection.setRemoteDescription(data.answer);
-});
-
-socket.on('webrtc_ice_candidate', async (data) => {
-    await peerConnection.addIceCandidate(data.candidate);
-});
-
-// Инициализация
-document.addEventListener('DOMContentLoaded', function() {
-    // Автоматически начинаем звонок если мы его создали
-    startCall();
-});
-</script>
 {% endblock %}
