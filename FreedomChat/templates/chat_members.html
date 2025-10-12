@@ -1,0 +1,448 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Участники чата - {{ chat_room.name }}</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+            overflow: hidden;
+        }
+
+        .header {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            padding: 1.5rem 2rem;
+            color: white;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+
+        .header h1 {
+            font-size: 1.5rem;
+            font-weight: 600;
+        }
+
+        .back-btn {
+            color: white;
+            text-decoration: none;
+            padding: 0.5rem 1rem;
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            border-radius: 20px;
+            transition: all 0.3s ease;
+        }
+
+        .back-btn:hover {
+            background: rgba(255, 255, 255, 0.2);
+        }
+
+        .content {
+            padding: 2rem;
+        }
+
+        .members-list {
+            margin-bottom: 2rem;
+        }
+
+        .member-card {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 1rem;
+            border: 1px solid #eee;
+            border-radius: 10px;
+            margin-bottom: 1rem;
+            background: #f8f9fa;
+        }
+
+        .member-info {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+
+        .member-avatar {
+            width: 50px;
+            height: 50px;
+            border-radius: 50%;
+            object-fit: cover;
+        }
+
+        .member-details h3 {
+            margin: 0;
+            color: #333;
+        }
+
+        .member-details p {
+            margin: 0;
+            color: #666;
+            font-size: 0.9rem;
+        }
+
+        .member-actions {
+            display: flex;
+            gap: 0.5rem;
+            align-items: center;
+        }
+
+        .role-badge {
+            padding: 0.25rem 0.75rem;
+            border-radius: 15px;
+            font-size: 0.8rem;
+            font-weight: 600;
+            margin-right: 1rem;
+        }
+
+        .role-owner {
+            background: #ff9800;
+            color: white;
+        }
+
+        .role-admin {
+            background: #2196F3;
+            color: white;
+        }
+
+        .role-member {
+            background: #6c757d;
+            color: white;
+        }
+
+        .btn {
+            padding: 0.5rem 1rem;
+            border: none;
+            border-radius: 20px;
+            font-size: 0.9rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-decoration: none;
+            display: inline-block;
+            text-align: center;
+        }
+
+        .btn-sm {
+            padding: 0.25rem 0.75rem;
+            font-size: 0.8rem;
+        }
+
+        .btn-primary {
+            background: #4CAF50;
+            color: white;
+        }
+
+        .btn-secondary {
+            background: #6c757d;
+            color: white;
+        }
+
+        .btn-danger {
+            background: #f44336;
+            color: white;
+        }
+
+        .btn-warning {
+            background: #ff9800;
+            color: white;
+        }
+
+        .btn:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+        }
+
+        .actions {
+            display: flex;
+            gap: 1rem;
+            margin-bottom: 2rem;
+        }
+
+        .flash-messages {
+            margin-bottom: 1rem;
+        }
+
+        .flash-message {
+            padding: 1rem;
+            border-radius: 8px;
+            margin-bottom: 0.5rem;
+        }
+
+        .flash-success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+
+        .flash-error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0,0,0,0.5);
+        }
+
+        .modal-content {
+            background-color: white;
+            margin: 15% auto;
+            padding: 2rem;
+            border-radius: 15px;
+            width: 90%;
+            max-width: 500px;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.3);
+        }
+
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1rem;
+        }
+
+        .close {
+            color: #aaa;
+            font-size: 28px;
+            font-weight: bold;
+            cursor: pointer;
+        }
+
+        .close:hover {
+            color: black;
+        }
+
+        .form-group {
+            margin-bottom: 1rem;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 0.5rem;
+            font-weight: 600;
+        }
+
+        .form-control {
+            width: 100%;
+            padding: 0.75rem;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            font-size: 1rem;
+        }
+
+        .online-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background: #4CAF50;
+            display: inline-block;
+            margin-right: 0.5rem;
+        }
+
+        .offline {
+            background: #6c757d;
+        }
+
+        @media (max-width: 768px) {
+            .container {
+                margin: 0 10px;
+            }
+            
+            .header {
+                padding: 1rem;
+            }
+            
+            .content {
+                padding: 1rem;
+            }
+            
+            .member-card {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 1rem;
+            }
+            
+            .member-actions {
+                width: 100%;
+                justify-content: flex-end;
+            }
+            
+            .actions {
+                flex-direction: column;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>👥 Участники чата</h1>
+            <a href="{{ url_for('chat', chat_id=chat_room.id) }}" class="back-btn">← Назад в чат</a>
+        </div>
+
+        <div class="content">
+            <!-- Flash сообщения -->
+            <div class="flash-messages">
+                {% with messages = get_flashed_messages(with_categories=true) %}
+                    {% if messages %}
+                        {% for category, message in messages %}
+                            <div class="flash-message flash-{{ category }}">{{ message }}</div>
+                        {% endfor %}
+                    {% endif %}
+                {% endwith %}
+            </div>
+
+            <!-- Действия -->
+            <div class="actions">
+                <a href="{{ url_for('chat_settings', chat_id=chat_room.id) }}" class="btn btn-secondary">⚙️ Настройки чата</a>
+                
+                {% if user_role == 'owner' %}
+                <button onclick="openTransferModal()" class="btn btn-warning">👑 Передать владение</button>
+                {% endif %}
+                
+                {% if user_role != 'owner' %}
+                <form method="POST" action="{{ url_for('leave_chat', chat_id=chat_room.id) }}" style="display: inline;">
+                    <button type="submit" class="btn btn-danger" onclick="return confirm('Вы уверены, что хотите покинуть этот чат?')">🚪 Покинуть чат</button>
+                </form>
+                {% endif %}
+            </div>
+
+            <!-- Список участников -->
+            <div class="members-list">
+                <h2>Участники ({{ members|length }})</h2>
+                
+                {% for member, role in members %}
+                <div class="member-card">
+                    <div class="member-info">
+                        <img src="{{ url_for('static', filename='avatars/' + member.avatar) }}" 
+                             alt="{{ member.username }}" class="member-avatar">
+                        <div class="member-details">
+                            <h3>
+                                <span class="online-dot {{ 'offline' if not member.online else '' }}"></span>
+                                {{ member.username }}
+                                {% if member.id == chat_room.created_by %}
+                                <span class="role-badge role-owner">Создатель</span>
+                                {% else %}
+                                <span class="role-badge role-{{ role }}">{{ role }}</span>
+                                {% endif %}
+                            </h3>
+                            <p>{{ member.email }}</p>
+                            <p><small>Статус: {{ member.status or 'Нет статуса' }}</small></p>
+                        </div>
+                    </div>
+                    
+                    <div class="member-actions">
+                        {% if is_owner_or_admin and member.id != current_user.id %}
+                            {% if user_role == 'owner' and role != 'owner' %}
+                            <form method="POST" action="{{ url_for('change_member_role', chat_id=chat_room.id) }}" style="display: inline;">
+                                <input type="hidden" name="user_id" value="{{ member.id }}">
+                                <select name="role" onchange="this.form.submit()" class="btn btn-sm">
+                                    <option value="member" {{ 'selected' if role == 'member' else '' }}>Участник</option>
+                                    <option value="admin" {{ 'selected' if role == 'admin' else '' }}>Админ</option>
+                                </select>
+                            </form>
+                            
+                            <form method="POST" action="{{ url_for('remove_member', chat_id=chat_room.id) }}" style="display: inline;">
+                                <input type="hidden" name="user_id" value="{{ member.id }}">
+                                <button type="submit" class="btn btn-danger btn-sm" 
+                                        onclick="return confirm('Вы уверены, что хотите удалить {{ member.username }} из чата?')">
+                                    🗑️ Удалить
+                                </button>
+                            </form>
+                            {% elif user_role == 'admin' and role == 'member' %}
+                            <form method="POST" action="{{ url_for('remove_member', chat_id=chat_room.id) }}" style="display: inline;">
+                                <input type="hidden" name="user_id" value="{{ member.id }}">
+                                <button type="submit" class="btn btn-danger btn-sm" 
+                                        onclick="return confirm('Вы уверены, что хотите удалить {{ member.username }} из чата?')">
+                                    🗑️ Удалить
+                                </button>
+                            </form>
+                            {% endif %}
+                        {% endif %}
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+
+            <!-- Информация -->
+            <div style="background: #e3f2fd; padding: 1rem; border-radius: 8px;">
+                <h3>💡 Информация о ролях</h3>
+                <p><strong>Владелец 👑</strong> - Может всё: изменять настройки, управлять участниками, передавать права</p>
+                <p><strong>Администратор 🔧</strong> - Может управлять участниками (кроме владельца и других админов), изменять настройки</p>
+                <p><strong>Участник 👤</strong> - Может писать в чат (если разрешено), читать сообщения</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Модальное окно передачи владения -->
+    <div id="transferModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>👑 Передать права владельца</h2>
+                <span class="close" onclick="closeTransferModal()">&times;</span>
+            </div>
+            <form method="POST" action="{{ url_for('transfer_ownership', chat_id=chat_room.id) }}">
+                <div class="form-group">
+                    <label for="new_owner_id">Выберите нового владельца:</label>
+                    <select id="new_owner_id" name="new_owner_id" class="form-control" required>
+                        <option value="">-- Выберите участника --</option>
+                        {% for member, role in members %}
+                            {% if member.id != current_user.id and role in ['admin', 'member'] %}
+                            <option value="{{ member.id }}">{{ member.username }} ({{ role }})</option>
+                            {% endif %}
+                        {% endfor %}
+                    </select>
+                </div>
+                <div style="margin-top: 1rem; display: flex; gap: 1rem;">
+                    <button type="submit" class="btn btn-warning">Передать права</button>
+                    <button type="button" class="btn btn-secondary" onclick="closeTransferModal()">Отмена</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        function openTransferModal() {
+            document.getElementById('transferModal').style.display = 'block';
+        }
+
+        function closeTransferModal() {
+            document.getElementById('transferModal').style.display = 'none';
+        }
+
+        // Закрытие модального окна при клике вне его
+        window.onclick = function(event) {
+            const modal = document.getElementById('transferModal');
+            if (event.target == modal) {
+                closeTransferModal();
+            }
+        }
+    </script>
+</body>
+</html>
