@@ -127,9 +127,16 @@
             object-fit: cover;
         }
 
+        .user-info {
+            flex: 1;
+        }
+
         .user-info h4 {
             margin: 0;
             font-size: 0.9rem;
+            display: flex;
+            align-items: center;
+            gap: 0.3rem;
         }
 
         .user-info p {
@@ -194,6 +201,7 @@
         .header-actions {
             display: flex;
             gap: 0.5rem;
+            align-items: center;
         }
 
         .call-btn {
@@ -254,6 +262,9 @@
         .message-sender {
             font-weight: 600;
             font-size: 0.9rem;
+            display: flex;
+            align-items: center;
+            gap: 0.3rem;
         }
 
         .message-time {
@@ -400,29 +411,68 @@
             font-size: 0.9rem;
         }
 
-        @media (max-width: 768px) {
-            .chat-container {
-                flex-direction: column;
-            }
-            
-            .sidebar {
-                width: 100%;
-                height: 200px;
-            }
-            
-            .messages-container {
-                padding: 1rem;
-            }
-            
-            .message {
-                max-width: 85%;
-            }
-            
-            .input-container {
-                padding: 1rem;
-            }
+        /* Бейджи пользователей */
+        .user-badge {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            font-size: 10px;
+            font-weight: bold;
+            margin-left: 0.3rem;
+            position: relative;
+            cursor: help;
         }
 
+        .badge-red {
+            background: #ff4444;
+            color: white;
+        }
+
+        .badge-blue {
+            background: #4444ff;
+            color: white;
+        }
+
+        .badge-yellow {
+            background: #ffaa00;
+            color: black;
+        }
+
+        .badge-purple {
+            background: #aa44ff;
+            color: white;
+        }
+
+        .badge-admin {
+            background: #00ff00;
+            color: black;
+        }
+
+        .badge-tooltip {
+            position: absolute;
+            bottom: 100%;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0, 0, 0, 0.8);
+            color: white;
+            padding: 0.5rem;
+            border-radius: 5px;
+            font-size: 0.8rem;
+            white-space: nowrap;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.3s ease;
+            z-index: 1000;
+        }
+
+        .user-badge:hover .badge-tooltip {
+            opacity: 1;
+        }
+
+        /* Роли в чате */
         .role-badge {
             display: inline-block;
             padding: 0.2rem 0.6rem;
@@ -445,6 +495,29 @@
         .role-member {
             background: #6c757d;
             color: white;
+        }
+
+        @media (max-width: 768px) {
+            .chat-container {
+                flex-direction: column;
+            }
+            
+            .sidebar {
+                width: 100%;
+                height: 200px;
+            }
+            
+            .messages-container {
+                padding: 1rem;
+            }
+            
+            .message {
+                max-width: 85%;
+            }
+            
+            .input-container {
+                padding: 1rem;
+            }
         }
     </style>
 </head>
@@ -471,6 +544,7 @@
                             <span class="online-dot {{ 'offline' if not user.online else '' }}"></span>
                             {{ user.username }}
                             {% if user.id == current_user.id %}(Вы){% endif %}
+                            {{ render_user_badge(user) }}
                         </h4>
                         <p>{{ user.status or 'Нет статуса' }}</p>
                     </div>
@@ -515,7 +589,10 @@
                     <div class="message-header">
                         <img src="{{ url_for('static', filename='avatars/' + message.author.avatar) }}" 
                              alt="{{ message.author.username }}" class="message-avatar">
-                        <span class="message-sender">{{ message.author.username }}</span>
+                        <span class="message-sender">
+                            {{ message.author.username }}
+                            {{ render_user_badge(message.author) }}
+                        </span>
                         <span class="message-time">{{ message.timestamp.strftime('%H:%M') }}</span>
                     </div>
                     <div class="message-content">
@@ -654,11 +731,26 @@
                 messageContent = data.content;
             }
 
+            // Создаем бейдж для сообщения
+            let badgeHtml = '';
+            if (data.user_badge) {
+                const badgeInfo = getBadgeInfo(data.user_badge);
+                badgeHtml = `
+                    <span class="user-badge badge-${data.user_badge}" title="${badgeInfo.title}">
+                        ${badgeInfo.emoji}
+                        <span class="badge-tooltip">${badgeInfo.title}</span>
+                    </span>
+                `;
+            }
+
             messageDiv.innerHTML = `
                 <div class="message-header">
                     <img src="{{ url_for('static', filename='avatars/') }}${data.user_avatar}" 
                          alt="${data.user_email}" class="message-avatar">
-                    <span class="message-sender">${data.user_email}</span>
+                    <span class="message-sender">
+                        ${data.user_email}
+                        ${badgeHtml}
+                    </span>
                     <span class="message-time">${messageTime}</span>
                 </div>
                 <div class="message-content">
@@ -693,6 +785,18 @@
         function scrollToBottom() {
             const container = document.getElementById('messagesContainer');
             container.scrollTop = container.scrollHeight;
+        }
+
+        // Информация о бейджах
+        function getBadgeInfo(badgeType) {
+            const badges = {
+                'red': { emoji: '🔴', title: 'Создатель мессенджера' },
+                'blue': { emoji: '🔵', title: 'Владелец крупного канала' },
+                'yellow': { emoji: '🟡', title: 'Популярная личность' },
+                'purple': { emoji: '🟣', title: 'Администратор' },
+                'admin': { emoji: '⚡', title: 'Системный администратор' }
+            };
+            return badges[badgeType] || { emoji: '', title: '' };
         }
 
         // Обработка ввода сообщения
