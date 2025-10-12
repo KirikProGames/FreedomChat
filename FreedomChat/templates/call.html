@@ -165,6 +165,19 @@
             background: #f44336;
         }
 
+        .debug-panel {
+            position: fixed;
+            bottom: 10px;
+            left: 10px;
+            background: rgba(0, 0, 0, 0.8);
+            color: white;
+            padding: 10px;
+            border-radius: 5px;
+            font-size: 12px;
+            max-width: 300px;
+            z-index: 1000;
+        }
+
         /* Адаптивность */
         @media (max-width: 768px) {
             .video-container {
@@ -189,6 +202,10 @@
             .btn {
                 padding: 0.5rem 1rem;
                 font-size: 0.8rem;
+            }
+            
+            .debug-panel {
+                display: none;
             }
         }
 
@@ -250,6 +267,11 @@
         </div>
     </div>
 
+    <div class="debug-panel" id="debugPanel">
+        <strong>Отладка:</strong>
+        <div id="debugInfo">Загрузка...</div>
+    </div>
+
     <script src="https://cdn.socket.io/4.5.0/socket.io.min.js"></script>
     <script>
         const socket = io();
@@ -262,62 +284,123 @@
         let hasVideo = false;
         let hasAudio = false;
         let isCallActive = false;
+        let reconnectAttempts = 0;
+        const MAX_RECONNECT_ATTEMPTS = 3;
 
-        // Конфигурация STUN серверов
+        // Конфигурация STUN/TURN серверов
         const configuration = {
             iceServers: [
                 { urls: 'stun:stun.l.google.com:19302' },
                 { urls: 'stun:stun1.l.google.com:19302' },
-                { urls: 'stun:stun2.l.google.com:19302' }
-            ]
+                { urls: 'stun:stun2.l.google.com:19302' },
+                { urls: 'stun:stun3.l.google.com:19302' },
+                { urls: 'stun:stun4.l.google.com:19302' },
+                // Бесплатные TURN серверы для обхода NAT
+                {
+                    urls: 'turn:numb.viagenie.ca',
+                    credential: 'muazkh',
+                    username: 'webrtc@live.com'
+                },
+                {
+                    urls: 'turn:openrelay.metered.ca:80',
+                    credential: 'openrelayproject',
+                    username: 'openrelayproject'
+                },
+                {
+                    urls: 'turn:openrelay.metered.ca:443',
+                    credential: 'openrelayproject',
+                    username: 'openrelayproject'
+                },
+                {
+                    urls: 'turn:turn.webrtcweb.com:443',
+                    credential: 'pass',
+                    username: 'user'
+                }
+            ],
+            iceCandidatePoolSize: 10,
+            bundlePolicy: 'max-bundle',
+            rtcpMuxPolicy: 'require'
         };
 
         // Инициализация звонка
         async function initializeCall() {
             try {
                 showStatus('localStatus', 'Запрос доступа к устройствам...');
+                updateDebugInfo('Запрос медиаустройств...');
                 
-                // Сначала пробуем получить только аудио
-                const audioConstraints = { 
+                // Пробуем получить аудио и видео вместе
+                const constraints = { 
                     audio: {
                         echoCancellation: true,
                         noiseSuppression: true,
                         autoGainControl: true
-                    } 
+                    },
+                    video: {
+                        width: { ideal: 640 },
+                        height: { ideal: 480 },
+                        frameRate: { ideal: 24 }
+                    }
                 };
                 
-                localStream = await navigator.mediaDevices.getUserMedia(audioConstraints);
-                hasAudio = true;
-                isAudioEnabled = true;
-                console.log('✅ Аудио получено успешно');
-                
-                // Пробуем получить видео отдельно
                 try {
-                    const videoConstraints = { 
-                        video: {
-                            width: { ideal: 640 },
-                            height: { ideal: 480 },
-                            frameRate: { ideal: 24 }
-                        } 
-                    };
-                    const videoStream = await navigator.mediaDevices.getUserMedia(videoConstraints);
-                    videoStream.getVideoTracks().forEach(track => {
-                        localStream.addTrack(track);
-                    });
-                    hasVideo = true;
-                    isVideoEnabled = true;
-                    console.log('✅ Видео получено успешно');
-                } catch (videoError) {
-                    console.log('📹 Видео недоступно, продолжаем без него:', videoError);
-                    hasVideo = false;
-                    isVideoEnabled = false;
-                    document.getElementById('videoBtn').disabled = true;
+                    localStream = await navigator.mediaDevices.getUserMedia(constraints);
+                    hasAudio = localStream.getAudioTracks().length > 0;
+                    hasVideo = localStream.getVideoTracks().length > 0;
+                    isAudioEnabled = hasAudio;
+                    isVideoEnabled = hasVideo;
+                    
+                    console.log('✅ Медиаустройства получены:', { hasAudio, hasVideo });
+                    updateDebugInfo(`Устройства: Аудио: ${hasAudio}, Видео: ${hasVideo}`);
+                    
+                } catch (combinedError) {
+                    console.log('❌ Не удалось получить аудио+видео вместе, пробуем раздельно:', combinedError);
+                    
+                    // Пробуем получить только аудио
+                    try {
+                        const audioConstraints = { 
+                            audio: {
+                                echoCancellation: true,
+                                noiseSuppression: true,
+                                autoGainControl: true
+                            } 
+                        };
+                        localStream = await navigator.mediaDevices.getUserMedia(audioConstraints);
+                        hasAudio = true;
+                        isAudioEnabled = true;
+                        
+                        // Пробуем получить видео отдельно
+                        try {
+                            const videoConstraints = { 
+                                video: {
+                                    width: { ideal: 640 },
+                                    height: { ideal: 480 },
+                                    frameRate: { ideal: 24 }
+                                } 
+                            };
+                            const videoStream = await navigator.mediaDevices.getUserMedia(videoConstraints);
+                            videoStream.getVideoTracks().forEach(track => {
+                                localStream.addTrack(track);
+                            });
+                            hasVideo = true;
+                            isVideoEnabled = true;
+                        } catch (videoError) {
+                            console.log('📹 Видео недоступно:', videoError);
+                            hasVideo = false;
+                        }
+                        
+                    } catch (audioError) {
+                        console.error('🎤 Не удалось получить аудио:', audioError);
+                        showStatus('localStatus', '❌ Не удалось получить доступ к микрофону');
+                        document.getElementById('audioBtn').disabled = true;
+                        updateDebugInfo('❌ Нет доступа к микрофону');
+                        return;
+                    }
                 }
                 
-            } catch (audioError) {
-                console.error('🎤 Не удалось получить аудио:', audioError);
-                showStatus('localStatus', '❌ Не удалось получить доступ к микрофону');
-                document.getElementById('audioBtn').disabled = true;
+            } catch (error) {
+                console.error('❌ Критическая ошибка инициализации:', error);
+                showStatus('localStatus', '❌ Ошибка доступа к устройствам');
+                updateDebugInfo(`❌ Ошибка: ${error.message}`);
                 return;
             }
             
@@ -328,6 +411,7 @@
             initializeWebRTC();
             
             console.log('🚀 Звонок инициализирован. Видео:', hasVideo, 'Аудио:', hasAudio);
+            updateDebugInfo(`Звонок запущен. Ожидание собеседника...`);
         }
 
         function setupInterface() {
@@ -352,6 +436,14 @@
             document.getElementById('localDeviceStatus').classList.remove('hidden');
             
             showStatus('localStatus', '✅ Готов к подключению');
+            
+            // Блокируем кнопки если устройств нет
+            if (!hasVideo) {
+                document.getElementById('videoBtn').disabled = true;
+            }
+            if (!hasAudio) {
+                document.getElementById('audioBtn').disabled = true;
+            }
         }
 
         function initializeWebRTC() {
@@ -380,6 +472,10 @@
             });
             
             console.log('📡 Подключен к комнате:', chatRoomId);
+            updateDebugInfo(`В комнате: ${chatRoomId}`);
+            
+            // Запускаем мониторинг состояния
+            setInterval(checkICEConnection, 2000);
         }
 
         function createPeerConnection() {
@@ -397,31 +493,37 @@
                     remoteVideo.classList.remove('hidden');
                     remotePlaceholder.classList.add('hidden');
                     console.log('✅ Видео собеседника подключено');
+                    updateDebugInfo('✅ Видео собеседника подключено');
                 } else {
                     remoteVideo.classList.add('hidden');
                     remotePlaceholder.classList.remove('hidden');
                     console.log('📹 У собеседника нет видео');
+                    updateDebugInfo('📹 У собеседника нет видео');
                 }
                 
                 if (remoteStream.getAudioTracks().length > 0) {
                     console.log('🎤 Аудио собеседника подключено');
+                    updateDebugInfo('🎤 Аудио собеседника подключено');
                 }
                 
                 showStatus('remoteStatus', '✅ Подключено');
                 isCallActive = true;
+                reconnectAttempts = 0;
             };
             
             // Обработка ICE кандидатов
             peerConnection.onicecandidate = (event) => {
                 if (event.candidate) {
-                    console.log('🧊 Отправляем ICE кандидат:', event.candidate);
+                    console.log('🧊 Отправляем ICE кандидат:', event.candidate.type);
                     socket.emit('webrtc_ice_candidate', {
                         room: chatRoomId,
                         candidate: event.candidate,
                         user_id: '{{ current_user.id }}'
                     });
+                    updateDebugInfo(`Отправлен ICE: ${event.candidate.type}`);
                 } else {
                     console.log('✅ Все ICE кандидаты собраны');
+                    updateDebugInfo('Все ICE кандидаты собраны');
                 }
             };
             
@@ -429,28 +531,90 @@
             peerConnection.onconnectionstatechange = () => {
                 const state = peerConnection.connectionState;
                 console.log('🔗 Состояние соединения:', state);
+                updateDebugInfo(`Соединение: ${state}`);
                 
                 if (state === 'connected') {
-                    showStatus('remoteStatus', '✅ Подключено');
+                    showStatus('remoteStatus', '✅ Подключено!');
                     isCallActive = true;
+                    reconnectAttempts = 0;
                 } else if (state === 'disconnected') {
                     showStatus('remoteStatus', '⚠️ Соединение нестабильно');
                 } else if (state === 'failed') {
                     showStatus('remoteStatus', '❌ Соединение прервано');
                     isCallActive = false;
+                    attemptReconnect();
                 } else if (state === 'connecting') {
                     showStatus('remoteStatus', '🔄 Подключение...');
                 }
             };
             
             peerConnection.oniceconnectionstatechange = () => {
-                console.log('❄️ ICE состояние:', peerConnection.iceConnectionState);
+                const iceState = peerConnection.iceConnectionState;
+                console.log('❄️ ICE состояние:', iceState);
+                updateDebugInfo(`ICE: ${iceState}`);
+                
+                if (iceState === 'checking') {
+                    showStatus('remoteStatus', '🔄 Поиск соединения...');
+                } else if (iceState === 'connected' || iceState === 'completed') {
+                    showStatus('remoteStatus', '✅ Подключено!');
+                    isCallActive = true;
+                } else if (iceState === 'failed') {
+                    showStatus('remoteStatus', '❌ Не удалось подключиться');
+                    attemptReconnect();
+                }
             };
+            
+            peerConnection.onicegatheringstatechange = () => {
+                console.log('🌐 ICE gathering:', peerConnection.iceGatheringState);
+            };
+        }
+
+        function checkICEConnection() {
+            if (!peerConnection) return;
+            
+            const iceState = peerConnection.iceConnectionState;
+            const connectionState = peerConnection.connectionState;
+            
+            // Если долго в состоянии checking, пробуем переподключиться
+            if (iceState === 'checking' && !isCallActive) {
+                const currentTime = new Date().getTime();
+                if (window.iceCheckingStartTime) {
+                    const elapsed = currentTime - window.iceCheckingStartTime;
+                    if (elapsed > 10000) { // 10 секунд
+                        console.log('🔄 Долго в checking, пробуем переподключиться');
+                        attemptReconnect();
+                    }
+                } else {
+                    window.iceCheckingStartTime = currentTime;
+                }
+            } else {
+                window.iceCheckingStartTime = null;
+            }
+        }
+
+        function attemptReconnect() {
+            if (reconnectAttempts >= MAX_RECONNECT_ATTEMPTS) {
+                console.log('❌ Превышено количество попыток переподключения');
+                showStatus('remoteStatus', '❌ Не удалось установить соединение');
+                return;
+            }
+            
+            reconnectAttempts++;
+            console.log(`🔄 Попытка переподключения ${reconnectAttempts}/${MAX_RECONNECT_ATTEMPTS}`);
+            showStatus('remoteStatus', `🔄 Переподключение... (${reconnectAttempts}/${MAX_RECONNECT_ATTEMPTS})`);
+            
+            setTimeout(() => {
+                if (peerConnection && peerConnection.signalingState === 'stable') {
+                    createOffer();
+                }
+            }, 2000);
         }
 
         // Обработчики WebRTC событий
         async function handleOffer(data) {
             console.log('📨 Получен OFFER от:', data.from_user);
+            updateDebugInfo('Получен OFFER');
+            
             try {
                 await peerConnection.setRemoteDescription(data.offer);
                 console.log('✅ Remote description установлен');
@@ -465,38 +629,49 @@
                     to_user: data.from_user
                 });
                 
+                updateDebugInfo('Отправлен ANSWER');
+                
             } catch (error) {
                 console.error('❌ Ошибка обработки OFFER:', error);
+                updateDebugInfo(`Ошибка OFFER: ${error.message}`);
             }
         }
 
         async function handleAnswer(data) {
             console.log('📨 Получен ANSWER от:', data.from_user);
+            updateDebugInfo('Получен ANSWER');
+            
             try {
                 await peerConnection.setRemoteDescription(data.answer);
                 console.log('✅ ANSWER обработан');
+                updateDebugInfo('ANSWER обработан');
             } catch (error) {
                 console.error('❌ Ошибка обработки ANSWER:', error);
+                updateDebugInfo(`Ошибка ANSWER: ${error.message}`);
             }
         }
 
         async function handleNewICECandidate(data) {
             console.log('🧊 Получен ICE кандидат от:', data.from_user);
+            updateDebugInfo('Получен ICE кандидат');
+            
             try {
                 await peerConnection.addIceCandidate(data.candidate);
                 console.log('✅ ICE кандидат добавлен');
             } catch (error) {
                 console.error('❌ Ошибка добавления ICE кандидата:', error);
+                updateDebugInfo(`Ошибка ICE: ${error.message}`);
             }
         }
 
         function handleUserJoined(data) {
             console.log('👤 Пользователь присоединился:', data.username);
             showStatus('remoteStatus', `🔄 ${data.username} подключился...`);
+            updateDebugInfo(`Подключился: ${data.username}`);
             
             // Если мы первый в комнате, создаем оффер через 1 секунду
             setTimeout(() => {
-                if (peerConnection.signalingState === 'stable') {
+                if (peerConnection && peerConnection.signalingState === 'stable') {
                     createOffer();
                 }
             }, 1000);
@@ -505,6 +680,7 @@
         function handleUserLeft(data) {
             console.log('👤 Пользователь покинул:', data.username);
             showStatus('remoteStatus', `❌ ${data.username} покинул звонок`);
+            updateDebugInfo(`Покинул: ${data.username}`);
             isCallActive = false;
             
             document.getElementById('remoteVideo').srcObject = null;
@@ -515,10 +691,13 @@
         function handleWebRTCError(data) {
             console.error('❌ WebRTC ошибка:', data.error);
             showStatus('remoteStatus', `❌ Ошибка: ${data.error}`);
+            updateDebugInfo(`WebRTC ошибка: ${data.error}`);
         }
 
         async function createOffer() {
             console.log('🔄 Создаем OFFER...');
+            updateDebugInfo('Создаем OFFER...');
+            
             try {
                 const offer = await peerConnection.createOffer({
                     offerToReceiveAudio: true,
@@ -533,8 +712,11 @@
                     offer: offer
                 });
                 
+                updateDebugInfo('OFFER отправлен');
+                
             } catch (error) {
                 console.error('❌ Ошибка создания OFFER:', error);
+                updateDebugInfo(`Ошибка OFFER: ${error.message}`);
             }
         }
 
@@ -552,9 +734,22 @@
 
         function showStatus(elementId, message) {
             const element = document.getElementById(elementId);
-            element.textContent = message;
-            element.classList.remove('hidden');
-            console.log('📢 Статус:', message);
+            if (element) {
+                element.textContent = message;
+                element.classList.remove('hidden');
+            }
+        }
+
+        function updateDebugInfo(message) {
+            const debugElement = document.getElementById('debugInfo');
+            if (debugElement) {
+                debugElement.innerHTML = message + '<br>' + debugElement.innerHTML;
+                // Ограничиваем количество сообщений
+                const lines = debugElement.innerHTML.split('<br>');
+                if (lines.length > 5) {
+                    debugElement.innerHTML = lines.slice(0, 5).join('<br>');
+                }
+            }
         }
 
         // Управление медиа
@@ -567,6 +762,7 @@
                 videoTracks[0].enabled = isVideoEnabled;
                 updateDeviceStatus();
                 console.log('🎥 Видео:', isVideoEnabled ? 'включено' : 'выключено');
+                updateDebugInfo(`Видео: ${isVideoEnabled ? 'вкл' : 'выкл'}`);
             }
         }
 
@@ -577,11 +773,13 @@
                 audioTracks[0].enabled = isAudioEnabled;
                 updateDeviceStatus();
                 console.log('🎤 Аудио:', isAudioEnabled ? 'включено' : 'выключено');
+                updateDebugInfo(`Аудио: ${isAudioEnabled ? 'вкл' : 'выкл'}`);
             }
         }
 
         function endCall() {
             console.log('📞 Завершение звонка...');
+            updateDebugInfo('Завершение звонка...');
             
             // Останавливаем все треки
             if (localStream) {
