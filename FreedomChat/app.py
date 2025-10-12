@@ -131,10 +131,11 @@ user_chatroom = db.Table('user_chatroom',
 def load_user(user_id):
     return User.query.get(int(user_id))
 
-@app.after_request
-def after_request(response):
-    response.headers['Content-Type'] = 'application/json; charset=utf-8'
-    return response
+# УДАЛЕН ПРОБЛЕМНЫЙ БЛОК КОДА:
+# @app.after_request
+# def after_request(response):
+#     response.headers['Content-Type'] = 'application/json; charset=utf-8'
+#     return response
 
 def generate_code(length=6):
     characters = string.ascii_letters + string.digits
