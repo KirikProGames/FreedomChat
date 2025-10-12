@@ -1,0 +1,651 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Админ-панель - FreedomChat</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+            overflow: hidden;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            padding: 1.5rem 2rem;
+            color: white;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .header h1 {
+            font-size: 1.5rem;
+            font-weight: 600;
+        }
+
+        .back-btn {
+            color: white;
+            text-decoration: none;
+            padding: 0.5rem 1rem;
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            border-radius: 20px;
+            transition: all 0.3s ease;
+        }
+
+        .back-btn:hover {
+            background: rgba(255, 255, 255, 0.2);
+        }
+
+        .content {
+            padding: 2rem;
+        }
+
+        .tabs {
+            display: flex;
+            gap: 1rem;
+            margin-bottom: 2rem;
+            border-bottom: 1px solid #ddd;
+        }
+
+        .tab {
+            padding: 1rem 2rem;
+            background: none;
+            border: none;
+            border-bottom: 3px solid transparent;
+            font-size: 1rem;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .tab.active {
+            border-bottom-color: #667eea;
+            color: #667eea;
+            font-weight: 600;
+        }
+
+        .tab-content {
+            display: none;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        .users-grid {
+            display: grid;
+            gap: 1rem;
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+        }
+
+        .user-card {
+            background: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 10px;
+            padding: 1.5rem;
+            transition: all 0.3s ease;
+        }
+
+        .user-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+        }
+
+        .user-header {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            margin-bottom: 1rem;
+        }
+
+        .user-avatar {
+            width: 60px;
+            height: 60px;
+            border-radius: 50%;
+            object-fit: cover;
+        }
+
+        .user-info h3 {
+            margin: 0;
+            color: #333;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .badge {
+            display: inline-block;
+            padding: 0.2rem 0.6rem;
+            border-radius: 12px;
+            font-size: 0.7rem;
+            font-weight: 600;
+            color: white;
+        }
+
+        .badge-red { background: #ff4444; }
+        .badge-blue { background: #4444ff; }
+        .badge-yellow { background: #ffaa00; }
+        .badge-purple { background: #aa44ff; }
+        .badge-admin { background: #00ff00; color: #000; }
+
+        .user-details {
+            margin-bottom: 1rem;
+        }
+
+        .user-details p {
+            margin: 0.25rem 0;
+            color: #666;
+            font-size: 0.9rem;
+        }
+
+        .user-actions {
+            display: flex;
+            gap: 0.5rem;
+            flex-wrap: wrap;
+        }
+
+        .btn {
+            padding: 0.5rem 1rem;
+            border: none;
+            border-radius: 20px;
+            font-size: 0.8rem;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-decoration: none;
+            display: inline-block;
+            text-align: center;
+        }
+
+        .btn-sm {
+            padding: 0.3rem 0.7rem;
+            font-size: 0.7rem;
+        }
+
+        .btn-primary { background: #3498db; color: white; }
+        .btn-success { background: #27ae60; color: white; }
+        .btn-warning { background: #f39c12; color: white; }
+        .btn-danger { background: #e74c3c; color: white; }
+        .btn-secondary { background: #95a5a6; color: white; }
+
+        .btn:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+        }
+
+        .form-group {
+            margin-bottom: 1rem;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 0.5rem;
+            font-weight: 600;
+            color: #333;
+        }
+
+        .form-control {
+            width: 100%;
+            padding: 0.75rem;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            font-size: 1rem;
+        }
+
+        .checkbox-group {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .checkbox-group input[type="checkbox"] {
+            width: 18px;
+            height: 18px;
+        }
+
+        .flash-messages {
+            margin-bottom: 1rem;
+        }
+
+        .flash-message {
+            padding: 1rem;
+            border-radius: 8px;
+            margin-bottom: 0.5rem;
+        }
+
+        .flash-success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+
+        .flash-error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1rem;
+            margin-bottom: 2rem;
+        }
+
+        .stat-card {
+            background: #f8f9fa;
+            padding: 1.5rem;
+            border-radius: 10px;
+            text-align: center;
+            border: 1px solid #dee2e6;
+        }
+
+        .stat-number {
+            font-size: 2rem;
+            font-weight: bold;
+            color: #667eea;
+            margin-bottom: 0.5rem;
+        }
+
+        .stat-label {
+            color: #666;
+            font-size: 0.9rem;
+        }
+
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0,0,0,0.5);
+        }
+
+        .modal-content {
+            background-color: white;
+            margin: 10% auto;
+            padding: 2rem;
+            border-radius: 15px;
+            width: 90%;
+            max-width: 500px;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.3);
+        }
+
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1rem;
+        }
+
+        .close {
+            color: #aaa;
+            font-size: 28px;
+            font-weight: bold;
+            cursor: pointer;
+        }
+
+        .close:hover {
+            color: black;
+        }
+
+        @media (max-width: 768px) {
+            .container {
+                margin: 0 10px;
+            }
+            
+            .header {
+                padding: 1rem;
+            }
+            
+            .content {
+                padding: 1rem;
+            }
+            
+            .users-grid {
+                grid-template-columns: 1fr;
+            }
+            
+            .tabs {
+                flex-direction: column;
+            }
+            
+            .user-actions {
+                flex-direction: column;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>⚡ Админ-панель</h1>
+            <a href="{{ url_for('dashboard') }}" class="back-btn">← Назад в чат</a>
+        </div>
+
+        <div class="content">
+            <!-- Flash сообщения -->
+            <div class="flash-messages">
+                {% with messages = get_flashed_messages(with_categories=true) %}
+                    {% if messages %}
+                        {% for category, message in messages %}
+                            <div class="flash-message flash-{{ category }}">{{ message }}</div>
+                        {% endfor %}
+                    {% endif %}
+                {% endwith %}
+            </div>
+
+            <!-- Табы -->
+            <div class="tabs">
+                <button class="tab active" onclick="openTab('users')">👥 Пользователи</button>
+                <button class="tab" onclick="openTab('create-user')">➕ Создать пользователя</button>
+                <button class="tab" onclick="openTab('stats')">📊 Статистика</button>
+            </div>
+
+            <!-- Вкладка пользователей -->
+            <div id="users" class="tab-content active">
+                <h2>Управление пользователями</h2>
+                <div class="users-grid">
+                    {% for user in users %}
+                    <div class="user-card">
+                        <div class="user-header">
+                            <img src="{{ url_for('static', filename='avatars/' + user.avatar) }}" 
+                                 alt="{{ user.username }}" class="user-avatar">
+                            <div class="user-info">
+                                <h3>
+                                    {{ user.username }}
+                                    {% if user.badge %}
+                                    <span class="badge badge-{{ user.badge }}">
+                                        {% if user.badge == 'red' %}🔴
+                                        {% elif user.badge == 'blue' %}🔵
+                                        {% elif user.badge == 'yellow' %}🟡
+                                        {% elif user.badge == 'purple' %}🟣
+                                        {% elif user.badge == 'admin' %}⚡
+                                        {% endif %}
+                                    </span>
+                                    {% endif %}
+                                </h3>
+                                <p>{{ user.email }}</p>
+                            </div>
+                        </div>
+                        
+                        <div class="user-details">
+                            <p><strong>Статус:</strong> {{ user.status or 'Не установлен' }}</p>
+                            <p><strong>Онлайн:</strong> {{ '✅' if user.online else '❌' }}</p>
+                            <p><strong>Админ:</strong> {{ '✅' if user.is_admin else '❌' }}</p>
+                            <p><strong>Создатель:</strong> {{ '✅' if user.is_super_admin else '❌' }}</p>
+                            <p><strong>Зарегистрирован:</strong> {{ user.created_at.strftime('%d.%m.%Y') }}</p>
+                        </div>
+                        
+                        <div class="user-actions">
+                            {% if current_user.is_super_admin and user.id != current_user.id %}
+                            <form method="POST" action="{{ url_for('admin_update_user', user_id=user.id) }}" style="display: inline;">
+                                <input type="hidden" name="action" value="toggle_admin">
+                                <button type="submit" class="btn btn-{{ 'warning' if user.is_admin else 'success' }} btn-sm">
+                                    {{ '❌ Снять админа' if user.is_admin else '⭐ Назначить админом' }}
+                                </button>
+                            </form>
+                            
+                            <button class="btn btn-primary btn-sm" onclick="openBadgeModal({{ user.id }}, '{{ user.username }}', '{{ user.badge }}')">
+                                🎖️ Галочка
+                            </button>
+                            
+                            <button class="btn btn-warning btn-sm" onclick="openEditModal({{ user.id }}, '{{ user.username }}', '{{ user.email }}', '{{ user.status }}')">
+                                ✏️ Редактировать
+                            </button>
+                            
+                            <form method="POST" action="{{ url_for('admin_update_user', user_id=user.id) }}" style="display: inline;">
+                                <input type="hidden" name="action" value="delete_user">
+                                <button type="submit" class="btn btn-danger btn-sm" 
+                                        onclick="return confirm('Вы уверены, что хотите удалить пользователя {{ user.username }}?')">
+                                    🗑️ Удалить
+                                </button>
+                            </form>
+                            {% endif %}
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+
+            <!-- Вкладка создания пользователя -->
+            <div id="create-user" class="tab-content">
+                <h2>Создать нового пользователя</h2>
+                {% if current_user.is_super_admin %}
+                <form method="POST" action="{{ url_for('admin_create_user') }}">
+                    <div class="form-group">
+                        <label for="username">Имя пользователя</label>
+                        <input type="text" id="username" name="username" class="form-control" required>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="email">Email</label>
+                        <input type="email" id="email" name="email" class="form-control" required>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="password">Пароль</label>
+                        <input type="password" id="password" name="password" class="form-control" required>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="badge">Галочка</label>
+                        <select id="badge" name="badge" class="form-control">
+                            <option value="">Без галочки</option>
+                            <option value="red">🔴 Создатель</option>
+                            <option value="blue">🔵 Владелец канала</option>
+                            <option value="yellow">🟡 Популярная личность</option>
+                            <option value="purple">🟣 Администратор</option>
+                            <option value="admin">⚡ Системный админ</option>
+                        </select>
+                    </div>
+                    
+                    <div class="checkbox-group">
+                        <input type="checkbox" id="is_admin" name="is_admin">
+                        <label for="is_admin">Назначить администратором</label>
+                    </div>
+                    
+                    <button type="submit" class="btn btn-success">Создать пользователя</button>
+                </form>
+                {% else %}
+                <div style="background: #fff3cd; padding: 1rem; border-radius: 8px; border: 1px solid #ffeaa7;">
+                    <p>❌ Только создатель мессенджера может создавать новых пользователей</p>
+                </div>
+                {% endif %}
+            </div>
+
+            <!-- Вкладка статистики -->
+            <div id="stats" class="tab-content">
+                <h2>Статистика системы</h2>
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <div class="stat-number">{{ users|length }}</div>
+                        <div class="stat-label">Всего пользователей</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-number">{{ users|selectattr('online')|list|length }}</div>
+                        <div class="stat-label">Онлайн сейчас</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-number">{{ users|selectattr('is_admin')|list|length }}</div>
+                        <div class="stat-label">Администраторов</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-number">{{ chat_rooms_count }}</div>
+                        <div class="stat-label">Активных чатов</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Модальное окно редактирования галочки -->
+    <div id="badgeModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>🎖️ Выбор галочки</h2>
+                <span class="close" onclick="closeBadgeModal()">&times;</span>
+            </div>
+            <form id="badgeForm" method="POST">
+                <input type="hidden" name="action" value="set_badge">
+                <div class="form-group">
+                    <label>Выберите галочку для <span id="badgeUserName"></span>:</label>
+                    <div style="display: flex; flex-direction: column; gap: 0.5rem; margin-top: 1rem;">
+                        <label style="display: flex; align-items: center; gap: 0.5rem;">
+                            <input type="radio" name="badge" value="" id="badge_none">
+                            <span>❌ Без галочки</span>
+                        </label>
+                        <label style="display: flex; align-items: center; gap: 0.5rem;">
+                            <input type="radio" name="badge" value="red" id="badge_red">
+                            <span class="badge badge-red">🔴 Создатель мессенджера</span>
+                        </label>
+                        <label style="display: flex; align-items: center; gap: 0.5rem;">
+                            <input type="radio" name="badge" value="blue" id="badge_blue">
+                            <span class="badge badge-blue">🔵 Владелец крупного канала</span>
+                        </label>
+                        <label style="display: flex; align-items: center; gap: 0.5rem;">
+                            <input type="radio" name="badge" value="yellow" id="badge_yellow">
+                            <span class="badge badge-yellow">🟡 Популярная личность/Блогер</span>
+                        </label>
+                        <label style="display: flex; align-items: center; gap: 0.5rem;">
+                            <input type="radio" name="badge" value="purple" id="badge_purple">
+                            <span class="badge badge-purple">🟣 Администратор</span>
+                        </label>
+                        <label style="display: flex; align-items: center; gap: 0.5rem;">
+                            <input type="radio" name="badge" value="admin" id="badge_admin">
+                            <span class="badge badge-admin">⚡ Системный администратор</span>
+                        </label>
+                    </div>
+                </div>
+                <div style="margin-top: 1rem; display: flex; gap: 1rem;">
+                    <button type="submit" class="btn btn-success">Сохранить</button>
+                    <button type="button" class="btn btn-secondary" onclick="closeBadgeModal()">Отмена</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Модальное окно редактирования профиля -->
+    <div id="editModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>✏️ Редактирование профиля</h2>
+                <span class="close" onclick="closeEditModal()">&times;</span>
+            </div>
+            <form id="editForm" method="POST">
+                <input type="hidden" name="action" value="update_profile">
+                <div class="form-group">
+                    <label for="edit_username">Имя пользователя</label>
+                    <input type="text" id="edit_username" name="username" class="form-control" required>
+                </div>
+                <div class="form-group">
+                    <label for="edit_email">Email</label>
+                    <input type="email" id="edit_email" name="email" class="form-control" required>
+                </div>
+                <div class="form-group">
+                    <label for="edit_status">Статус</label>
+                    <input type="text" id="edit_status" name="status" class="form-control">
+                </div>
+                <div style="margin-top: 1rem; display: flex; gap: 1rem;">
+                    <button type="submit" class="btn btn-success">Сохранить</button>
+                    <button type="button" class="btn btn-secondary" onclick="closeEditModal()">Отмена</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        // Управление табами
+        function openTab(tabName) {
+            // Скрыть все табы
+            document.querySelectorAll('.tab-content').forEach(tab => {
+                tab.classList.remove('active');
+            });
+            document.querySelectorAll('.tab').forEach(tab => {
+                tab.classList.remove('active');
+            });
+            
+            // Показать выбранный таб
+            document.getElementById(tabName).classList.add('active');
+            event.currentTarget.classList.add('active');
+        }
+
+        // Модальное окно галочки
+        let currentUserId = null;
+
+        function openBadgeModal(userId, username, currentBadge) {
+            currentUserId = userId;
+            document.getElementById('badgeUserName').textContent = username;
+            document.getElementById('badgeForm').action = `/admin/update_user/${userId}`;
+            
+            // Сбросить все выборы
+            document.querySelectorAll('input[name="badge"]').forEach(radio => {
+                radio.checked = false;
+            });
+            
+            // Установить текущую галочку
+            if (currentBadge) {
+                document.getElementById(`badge_${currentBadge}`).checked = true;
+            } else {
+                document.getElementById('badge_none').checked = true;
+            }
+            
+            document.getElementById('badgeModal').style.display = 'block';
+        }
+
+        function closeBadgeModal() {
+            document.getElementById('badgeModal').style.display = 'none';
+        }
+
+        // Модальное окно редактирования
+        function openEditModal(userId, username, email, status) {
+            currentUserId = userId;
+            document.getElementById('edit_username').value = username;
+            document.getElementById('edit_email').value = email;
+            document.getElementById('edit_status').value = status || '';
+            document.getElementById('editForm').action = `/admin/update_user/${userId}`;
+            document.getElementById('editModal').style.display = 'block';
+        }
+
+        function closeEditModal() {
+            document.getElementById('editModal').style.display = 'none';
+        }
+
+        // Закрытие модальных окон при клике вне их
+        window.onclick = function(event) {
+            const badgeModal = document.getElementById('badgeModal');
+            const editModal = document.getElementById('editModal');
+            
+            if (event.target == badgeModal) {
+                closeBadgeModal();
+            }
+            if (event.target == editModal) {
+                closeEditModal();
+            }
+        }
+
+        // Автоматическое обновление статистики каждые 30 секунд
+        setInterval(() => {
+            // Можно добавить AJAX-обновление статистики
+        }, 30000);
+    </script>
+</body>
+</html>
