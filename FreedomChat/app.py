@@ -27,7 +27,7 @@ os.makedirs(app.config['VOICE_FOLDER'], exist_ok=True)
 os.makedirs('static/avatars', exist_ok=True)
 
 db = SQLAlchemy(app)
-migrate = Migrate(app, db)  # Добавляем миграции
+migrate = Migrate(app, db)
 socketio = SocketIO(app, cors_allowed_origins="*", logger=True, engineio_logger=True)
 login_manager = LoginManager(app)
 login_manager.login_view = 'login'
@@ -59,7 +59,7 @@ class User(db.Model, UserMixin):
     is_admin = db.Column(db.Boolean, default=False)
     bio = db.Column(db.Text, default='')
     phone = db.Column(db.String(20))
-    google_id = db.Column(db.String(100), unique=True, nullable=True)  # Исправлено: добавлено nullable=True
+    google_id = db.Column(db.String(100), unique=True, nullable=True)
     
     messages = db.relationship('Message', backref='author', lazy=True)
     chat_rooms = db.relationship('ChatRoom', secondary='user_chatroom', backref='members')
@@ -130,12 +130,6 @@ user_chatroom = db.Table('user_chatroom',
 @login_manager.user_loader
 def load_user(user_id):
     return User.query.get(int(user_id))
-
-# УДАЛЕН ПРОБЛЕМНЫЙ БЛОК КОДА:
-# @app.after_request
-# def after_request(response):
-#     response.headers['Content-Type'] = 'application/json; charset=utf-8'
-#     return response
 
 def generate_code(length=6):
     characters = string.ascii_letters + string.digits
@@ -229,7 +223,7 @@ def google_authorize():
     
     return redirect(url_for('login'))
 
-# WebSocket события
+# WebSocket события для чата
 @socketio.on('connect')
 def handle_connect():
     if current_user.is_authenticated:
@@ -361,6 +355,78 @@ def handle_voice_message(data):
         
     except Exception as e:
         emit('error', {'message': f'Voice error: {str(e)}'})
+
+# WebSocket события для видеозвонков
+@socketio.on('join_call')
+def handle_join_call(data):
+    room = data['room']
+    join_room(room)
+    
+    # Уведомляем других участников
+    emit('user_joined_call', {
+        'user_id': current_user.id,
+        'username': current_user.username
+    }, room=room, include_self=False)
+    
+    print(f"📞 Пользователь {current_user.username} присоединился к звонку {room}")
+
+@socketio.on('leave_call')
+def handle_leave_call(data):
+    room = data['room']
+    
+    # Уведомляем других участников
+    emit('user_left_call', {
+        'user_id': current_user.id,
+        'username': current_user.username
+    }, room=room, include_self=False)
+    
+    leave_room(room)
+    print(f"📞 Пользователь {current_user.username} покинул звонок {room}")
+
+@socketio.on('webrtc_offer')
+def handle_webrtc_offer(data):
+    room = data['room']
+    emit('webrtc_offer', {
+        'offer': data['offer'],
+        'from_user': current_user.id
+    }, room=room, include_self=False)
+    print(f"📨 OFFER отправлен в комнату {room}")
+
+@socketio.on('webrtc_answer')
+def handle_webrtc_answer(data):
+    room = data['room']
+    target_user = data.get('to_user')
+    
+    if target_user:
+        # Отправляем конкретному пользователю
+        emit('webrtc_answer', {
+            'answer': data['answer'],
+            'from_user': current_user.id
+        }, room=request.sid)
+    else:
+        # Широковещательно
+        emit('webrtc_answer', {
+            'answer': data['answer'],
+            'from_user': current_user.id
+        }, room=room, include_self=False)
+    print(f"📨 ANSWER отправлен в комнату {room}")
+
+@socketio.on('webrtc_ice_candidate')
+def handle_webrtc_ice_candidate(data):
+    room = data['room']
+    emit('webrtc_ice_candidate', {
+        'candidate': data['candidate'],
+        'from_user': current_user.id
+    }, room=room, include_self=False)
+    print(f"🧊 ICE кандидат отправлен в комнату {room}")
+
+@socketio.on('webrtc_error')
+def handle_webrtc_error(data):
+    room = data['room']
+    emit('webrtc_error', {
+        'error': data['error'],
+        'from_user': current_user.id
+    }, room=room)
 
 # Основные маршруты
 @app.route('/')
