@@ -1,4 +1,257 @@
-<script>
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Видеозвонок - {{ chat_room.name }}</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .header {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            padding: 1rem 2rem;
+            color: white;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+
+        .header h1 {
+            font-size: 1.5rem;
+            font-weight: 600;
+        }
+
+        .controls {
+            display: flex;
+            gap: 1rem;
+        }
+
+        .btn {
+            padding: 0.75rem 1.5rem;
+            border: none;
+            border-radius: 25px;
+            font-size: 0.9rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .btn-primary {
+            background: #4CAF50;
+            color: white;
+        }
+
+        .btn-danger {
+            background: #f44336;
+            color: white;
+        }
+
+        .btn-secondary {
+            background: #ff9800;
+            color: white;
+        }
+
+        .btn:disabled {
+            background: #666;
+            cursor: not-allowed;
+        }
+
+        .btn:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+        }
+
+        .video-container {
+            flex: 1;
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1rem;
+            padding: 2rem;
+            max-height: calc(100vh - 80px);
+        }
+
+        .video-wrapper {
+            position: relative;
+            background: #000;
+            border-radius: 15px;
+            overflow: hidden;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+            min-height: 300px;
+        }
+
+        .video-wrapper video {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        .video-placeholder {
+            width: 100%;
+            height: 100%;
+            background: #333;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 4rem;
+        }
+
+        .video-label {
+            position: absolute;
+            bottom: 1rem;
+            left: 1rem;
+            background: rgba(0, 0, 0, 0.7);
+            color: white;
+            padding: 0.5rem 1rem;
+            border-radius: 20px;
+            font-size: 0.9rem;
+        }
+
+        .status {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: white;
+            font-size: 1.2rem;
+            text-align: center;
+            background: rgba(0, 0, 0, 0.7);
+            padding: 1rem 2rem;
+            border-radius: 10px;
+        }
+
+        .device-status {
+            position: absolute;
+            top: 1rem;
+            right: 1rem;
+            background: rgba(0, 0, 0, 0.7);
+            color: white;
+            padding: 0.5rem 1rem;
+            border-radius: 20px;
+            font-size: 0.8rem;
+            display: flex;
+            gap: 0.5rem;
+        }
+
+        .device-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            display: inline-block;
+        }
+
+        .device-on {
+            background: #4CAF50;
+        }
+
+        .device-off {
+            background: #f44336;
+        }
+
+        /* Адаптивность */
+        @media (max-width: 768px) {
+            .video-container {
+                grid-template-columns: 1fr;
+                padding: 1rem;
+            }
+            
+            .header {
+                padding: 1rem;
+                flex-direction: column;
+                gap: 1rem;
+            }
+            
+            .header h1 {
+                font-size: 1.2rem;
+            }
+            
+            .controls {
+                gap: 0.5rem;
+            }
+            
+            .btn {
+                padding: 0.5rem 1rem;
+                font-size: 0.8rem;
+            }
+        }
+
+        .hidden {
+            display: none;
+        }
+
+        .pulse {
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+            100% { transform: scale(1); }
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>📞 {{ chat_room.name }} - Видеозвонок</h1>
+        <div class="controls">
+            <button class="btn btn-secondary" onclick="toggleVideo()" id="videoBtn">
+                <span>🎥</span>
+                <span id="videoToggleText">Выкл видео</span>
+            </button>
+            <button class="btn btn-secondary" onclick="toggleAudio()" id="audioBtn">
+                <span>🎤</span>
+                <span id="audioToggleText">Выкл звук</span>
+            </button>
+            <button class="btn btn-danger" onclick="endCall()">
+                <span>📞</span>
+                Завершить
+            </button>
+        </div>
+    </div>
+
+    <div class="video-container">
+        <div class="video-wrapper">
+            <video id="localVideo" autoplay muted></video>
+            <div id="localPlaceholder" class="video-placeholder hidden">
+                <span>📹</span>
+            </div>
+            <div class="video-label">Вы ({{ current_user.username }})</div>
+            <div id="localStatus" class="status">Запрос доступа к устройствам...</div>
+            <div id="localDeviceStatus" class="device-status hidden">
+                <span class="device-dot device-on" id="videoStatusDot"></span>
+                <span class="device-dot device-on" id="audioStatusDot"></span>
+            </div>
+        </div>
+        
+        <div class="video-wrapper">
+            <video id="remoteVideo" autoplay></video>
+            <div id="remotePlaceholder" class="video-placeholder">
+                <span>👤</span>
+            </div>
+            <div class="video-label">Собеседник</div>
+            <div id="remoteStatus" class="status">Ожидание подключения...</div>
+        </div>
+    </div>
+
+    <script src="https://cdn.socket.io/4.5.0/socket.io.min.js"></script>
+    <script>
         const socket = io();
         const chatRoomId = {{ chat_room.id }};
         let localStream;
@@ -366,3 +619,5 @@
             initializeCall();
         });
     </script>
+</body>
+</html>
