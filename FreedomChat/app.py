@@ -19,7 +19,7 @@ app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['UPLOAD_FOLDER'] = 'uploads'
 app.config['VOICE_FOLDER'] = 'uploads/voice'
 app.config['MAX_CONTENT_LENGTH'] = 50 * 1024 * 1024
-app.config['JSON_AS_ASCII'] = False  # Фикс кодировки
+app.config['JSON_AS_ASCII'] = False
 
 os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
 os.makedirs(app.config['VOICE_FOLDER'], exist_ok=True)
@@ -69,6 +69,18 @@ class User(db.Model, UserMixin):
         if not self.password_hash:
             return False
         return check_password_hash(self.password_hash, password)
+    
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'username': self.username,
+            'email': self.email,
+            'avatar': self.avatar,
+            'online': self.online,
+            'status': self.status,
+            'bio': self.bio,
+            'last_seen': self.last_seen.isoformat() if self.last_seen else None
+        }
 
 class ChatRoom(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -83,7 +95,13 @@ class ChatRoom(db.Model):
     created_by = db.Column(db.Integer, db.ForeignKey('user.id'))
     theme = db.Column(db.String(20), default='light')
     
+    # Для личных сообщений
+    user1_id = db.Column(db.Integer, db.ForeignKey('user.id'))
+    user2_id = db.Column(db.Integer, db.ForeignKey('user.id'))
+    
     created_by_user = db.relationship('User', backref='created_chats', foreign_keys=[created_by])
+    user1 = db.relationship('User', foreign_keys=[user1_id])
+    user2 = db.relationship('User', foreign_keys=[user2_id])
     messages = db.relationship('Message', backref='chat_room', lazy=True)
 
 class Message(db.Model):
@@ -123,6 +141,55 @@ def generate_code(length=6):
 def generate_invite_link():
     return ''.join(random.choice(string.ascii_lowercase + string.digits) for _ in range(10))
 
+# Поиск пользователей
+@app.route('/search_users')
+@login_required
+def search_users():
+    query = request.args.get('q', '')
+    if query:
+        users = User.query.filter(
+            (User.username.ilike(f'%{query}%')) | 
+            (User.email.ilike(f'%{query}%'))
+        ).filter(User.id != current_user.id).limit(20).all()
+        return jsonify([user.to_dict() for user in users])
+    return jsonify([])
+
+# Создание ЛС
+@app.route('/create_dm/<int:user_id>')
+@login_required
+def create_dm(user_id):
+    target_user = User.query.get_or_404(user_id)
+    
+    # Проверяем существует ли уже ЛС
+    existing_dm = ChatRoom.query.filter(
+        ((ChatRoom.user1_id == current_user.id) & (ChatRoom.user2_id == user_id)) |
+        ((ChatRoom.user1_id == user_id) & (ChatRoom.user2_id == current_user.id))
+    ).first()
+    
+    if existing_dm:
+        return redirect(url_for('chat', chat_id=existing_dm.id))
+    
+    # Создаем новое ЛС
+    dm = ChatRoom(
+        name=f'{current_user.username} & {target_user.username}',
+        is_direct=True,
+        user1_id=current_user.id,
+        user2_id=user_id
+    )
+    
+    dm.members.extend([current_user, target_user])
+    db.session.add(dm)
+    db.session.commit()
+    
+    return redirect(url_for('chat', chat_id=dm.id))
+
+# Просмотр профиля пользователя
+@app.route('/profile/<username>')
+@login_required
+def user_profile(username):
+    user = User.query.filter_by(username=username).first_or_404()
+    return render_template('user_profile.html', user=user)
+
 # Google OAuth маршруты
 @app.route('/login/google')
 def google_login():
@@ -142,7 +209,6 @@ def google_authorize():
                 if user:
                     user.google_id = user_info['sub']
                 else:
-                    # Создаем нового пользователя
                     user = User(
                         google_id=user_info['sub'],
                         email=user_info['email'],
@@ -515,7 +581,6 @@ def logout():
 with app.app_context():
     db.create_all()
     
-    # Создаем тестовых пользователей если их нет
     if not User.query.filter_by(email='admin@freedomchat.com').first():
         admin = User(
             email='admin@freedomchat.com',
@@ -531,9 +596,6 @@ with app.app_context():
         db.session.add(test_user)
     
     db.session.commit()
-    print("✅ База данных создана!")
-    print("🔑 Админ: admin@freedomchat.com / Admin123!")
-    print("👤 Тест: test@example.com / 123456")
 
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5001))
