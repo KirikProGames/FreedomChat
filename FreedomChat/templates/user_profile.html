@@ -1,0 +1,234 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="dashboard-container">
+    <!-- Header -->
+    <div class="dashboard-header">
+        <div style="position: relative; z-index: 2;">
+            <h1 class="dashboard-title">👤 {{ user.username }}</h1>
+            <p class="dashboard-subtitle">Профиль пользователя</p>
+        </div>
+        <div style="display: flex; gap: 12px; position: relative; z-index: 2;">
+            <a href="{{ url_for('dashboard') }}" class="btn btn-secondary" style="background: rgba(255,255,255,0.2); border-color: rgba(255,255,255,0.3); color: white;">
+                ← Назад
+            </a>
+            {% if user.id != current_user.id %}
+            <a href="{{ url_for('create_dm', user_id=user.id) }}" class="btn btn-primary" style="background: rgba(255,255,255,0.2); border-color: rgba(255,255,255,0.3); color: white;">
+                💬 Написать сообщение
+            </a>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Content -->
+    <div class="dashboard-content">
+        <!-- Profile Info -->
+        <div class="feature-card" style="grid-column: 1 / -1;">
+            <div class="feature-icon">👤</div>
+            <h3 class="feature-title">Информация о пользователе</h3>
+            
+            <div style="display: grid; grid-template-columns: auto 1fr; gap: 24px; align-items: start;">
+                <!-- Avatar -->
+                <div style="text-align: center;">
+                    <div class="avatar-preview" style="width: 150px; height: 150px; border-radius: 20px; overflow: hidden; margin: 0 auto 16px; border: 4px solid var(--border);">
+                        <img src="{{ url_for('static', filename='avatars/' + user.avatar) }}" 
+                             alt="Avatar" style="width: 100%; height: 100%; object-fit: cover;"
+                             onerror="this.src='data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTUwIiBoZWlnaHQ9IjE1MCIgdmlld0JveD0iMCAwIDE1MCAxNTAiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CjxyZWN0IHdpZHRoPSIxNTAiIGhlaWdodD0iMTUwIiByeD0iMjAiIGZpbGw9InVybCgjZ3JhZGllbnQwX2xpbmVhcl8xXzEpIi8+CjxwYXRoIGQ9Ik03NSA3NUM3NSA4NS44MjggNjYuODI4IDk0IDU2IDk0QzQ1LjE3MiA5NCAzNyA4NS44MjggMzcgNzVDMzcgNjQuMTcyIDQ1LjE3MiA1NiA1NiA1NkM2Ni44MjggNTYgNzUgNjQuMTcyIDc1IDc1WiIgZmlsbD0id2hpdGUiLz4KPHBhdGggZD0iTTU2IDgwQzM1LjUgODAgMTkgOTYuNSAxOSAxMTdWMTIwTDEwMCAxMjBWMTE3QzEwMCA5Ni41IDgzLjUgODAgNTYgODBaIiBmaWxsPSJ3aGl0ZSIvPgo8ZGVmcz4KPGxpbmVhckdyYWRpZW50IGlkPSJncmFkaWVudDBfbGluZWFyXzFfMSIgeDE9Ijc1IiB5MT0iMCIgeDI9Ijc1IiB5Mj0iMTUwIiBncmFkaWVudFVuaXRzPSJ1c2VyU3BhY2VPblVzZSI+CjxzdG9wIHN0b3AtY29sb3I9IiM2MzY2ZjEiLz4KPHN0b3Agb2Zmc2V0PSIxIiBzdG9wLWNvbG9yPSIjOGI1Y2Y2Ii8+CjwvbGluZWFyR3JhZGllbnQ+CjwvZGVmcz4KPC9zdmc+'">
+                    </div>
+                    <div style="display: flex; align-items: center; justify-content: center; gap: 8px; margin-bottom: 8px;">
+                        <div class="status-indicator {% if user.online %}online{% else %}offline{% endif %}" 
+                             style="width: 12px; height: 12px; border-radius: 50%; background: {% if user.online %}var(--success){% else %}var(--secondary){% endif %};"></div>
+                        <span style="font-size: 14px; color: var(--text-secondary);">
+                            {% if user.online %}🟢 Онлайн{% else %}⚫ Был(а) {{ user.last_seen.strftime('%H:%M') }}{% endif %}
+                        </span>
+                    </div>
+                </div>
+
+                <!-- User Info -->
+                <div>
+                    <div style="display: grid; gap: 16px;">
+                        <div>
+                            <label style="font-weight: 600; color: var(--text-secondary); font-size: 14px;">👤 Username</label>
+                            <div style="font-size: 18px; font-weight: 700; color: var(--text-primary); margin-top: 4px;">
+                                {{ user.username }}
+                            </div>
+                        </div>
+
+                        <div>
+                            <label style="font-weight: 600; color: var(--text-secondary); font-size: 14px;">📧 Email</label>
+                            <div style="font-size: 16px; color: var(--text-primary); margin-top: 4px;">
+                                {{ user.email }}
+                            </div>
+                        </div>
+
+                        {% if user.status %}
+                        <div>
+                            <label style="font-weight: 600; color: var(--text-secondary); font-size: 14px;">💬 Статус</label>
+                            <div style="font-size: 16px; color: var(--text-primary); margin-top: 4px;">
+                                {{ user.status }}
+                            </div>
+                        </div>
+                        {% endif %}
+
+                        {% if user.bio %}
+                        <div>
+                            <label style="font-weight: 600; color: var(--text-secondary); font-size: 14px;">📝 О себе</label>
+                            <div style="font-size: 16px; color: var(--text-primary); margin-top: 4px; line-height: 1.5;">
+                                {{ user.bio }}
+                            </div>
+                        </div>
+                        {% endif %}
+
+                        <div>
+                            <label style="font-weight: 600; color: var(--text-secondary); font-size: 14px;">📅 Регистрация</label>
+                            <div style="font-size: 14px; color: var(--text-primary); margin-top: 4px;">
+                                {{ user.created_at.strftime('%d.%m.%Y') }}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Stats -->
+        <div class="feature-card">
+            <div class="feature-icon">📊</div>
+            <h3 class="feature-title">Статистика</h3>
+            
+            <div class="stats-grid">
+                <div class="stat-item">
+                    <div class="stat-number">{{ user.messages|length }}</div>
+                    <div class="stat-label">Сообщений</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-number">{{ user.chat_rooms|selectattr('is_direct')|list|length }}</div>
+                    <div class="stat-label">ЛС</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-number">{{ user.chat_rooms|rejectattr('is_direct')|list|length }}</div>
+                    <div class="stat-label">Чатов</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-number">{% if user.online %}🟢{% else %}⚫{% endif %}</div>
+                    <div class="stat-label">Статус</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Actions -->
+        <div class="feature-card">
+            <div class="feature-icon">⚡</div>
+            <h3 class="feature-title">Действия</h3>
+            
+            <div style="display: grid; gap: 12px;">
+                {% if user.id != current_user.id %}
+                <a href="{{ url_for('create_dm', user_id=user.id) }}" class="btn btn-primary" style="justify-content: start; gap: 12px;">
+                    💬 Написать сообщение
+                </a>
+                <button class="btn btn-secondary" style="justify-content: start; gap: 12px;" onclick="copyProfileLink()">
+                    📋 Скопировать ссылку
+                </button>
+                {% else %}
+                <a href="{{ url_for('profile') }}" class="btn btn-primary" style="justify-content: start; gap: 12px;">
+                    ✏️ Редактировать профиль
+                </a>
+                {% endif %}
+            </div>
+
+            {% if user.id != current_user.id %}
+            <div style="margin-top: 24px; padding-top: 20px; border-top: 1px solid var(--border);">
+                <h4 style="margin-bottom: 12px; color: var(--text-primary);">Быстрые действия</h4>
+                <div style="display: grid; gap: 8px;">
+                    <button class="btn btn-secondary" style="justify-content: start; gap: 12px; font-size: 14px;" 
+                            onclick="shareProfile()">
+                        📱 Поделиться профилем
+                    </button>
+                </div>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<style>
+.stats-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+    margin-top: 20px;
+}
+
+.stat-item {
+    background: var(--bg-secondary);
+    padding: 16px;
+    border-radius: 12px;
+    text-align: center;
+}
+
+.stat-number {
+    font-size: 24px;
+    font-weight: 700;
+    background: var(--gradient);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    margin-bottom: 4px;
+}
+
+.stat-label {
+    font-size: 12px;
+    color: var(--text-secondary);
+    font-weight: 600;
+}
+
+.status-indicator.online {
+    background: var(--success);
+    box-shadow: 0 0 10px var(--success);
+}
+
+.status-indicator.offline {
+    background: var(--secondary);
+}
+
+@media (max-width: 768px) {
+    .dashboard-content {
+        grid-template-columns: 1fr;
+    }
+    
+    .stats-grid {
+        grid-template-columns: 1fr 1fr;
+    }
+}
+
+@media (max-width: 480px) {
+    .stats-grid {
+        grid-template-columns: 1fr;
+    }
+}
+</style>
+
+<script>
+function copyProfileLink() {
+    const profileLink = window.location.href;
+    navigator.clipboard.writeText(profileLink).then(() => {
+        showNotification('Успех', 'Ссылка на профиль скопирована!', 'success');
+    });
+}
+
+function shareProfile() {
+    const profileLink = window.location.href;
+    const shareText = `Посмотри профиль {{ user.username }} в FreedomChat: ${profileLink}`;
+    
+    if (navigator.share) {
+        navigator.share({
+            title: 'Профиль {{ user.username }}',
+            text: shareText,
+            url: profileLink
+        });
+    } else {
+        navigator.clipboard.writeText(shareText).then(() => {
+            showNotification('Успех', 'Текст для分享 скопирован!', 'success');
+        });
+    }
+}
+</script>
+{% endblock %}
