@@ -1,257 +1,4 @@
-<!DOCTYPE html>
-<html lang="ru">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Видеозвонок - {{ chat_room.name }}</title>
-    <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-
-        body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            height: 100vh;
-            display: flex;
-            flex-direction: column;
-        }
-
-        .header {
-            background: rgba(255, 255, 255, 0.1);
-            backdrop-filter: blur(10px);
-            padding: 1rem 2rem;
-            color: white;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-        }
-
-        .header h1 {
-            font-size: 1.5rem;
-            font-weight: 600;
-        }
-
-        .controls {
-            display: flex;
-            gap: 1rem;
-        }
-
-        .btn {
-            padding: 0.75rem 1.5rem;
-            border: none;
-            border-radius: 25px;
-            font-size: 0.9rem;
-            font-weight: 600;
-            cursor: pointer;
-            transition: all 0.3s ease;
-            display: flex;
-            align-items: center;
-            gap: 0.5rem;
-        }
-
-        .btn-primary {
-            background: #4CAF50;
-            color: white;
-        }
-
-        .btn-danger {
-            background: #f44336;
-            color: white;
-        }
-
-        .btn-secondary {
-            background: #ff9800;
-            color: white;
-        }
-
-        .btn:disabled {
-            background: #666;
-            cursor: not-allowed;
-        }
-
-        .btn:hover:not(:disabled) {
-            transform: translateY(-2px);
-            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
-        }
-
-        .video-container {
-            flex: 1;
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 1rem;
-            padding: 2rem;
-            max-height: calc(100vh - 80px);
-        }
-
-        .video-wrapper {
-            position: relative;
-            background: #000;
-            border-radius: 15px;
-            overflow: hidden;
-            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
-            min-height: 300px;
-        }
-
-        .video-wrapper video {
-            width: 100%;
-            height: 100%;
-            object-fit: cover;
-        }
-
-        .video-placeholder {
-            width: 100%;
-            height: 100%;
-            background: #333;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            color: white;
-            font-size: 4rem;
-        }
-
-        .video-label {
-            position: absolute;
-            bottom: 1rem;
-            left: 1rem;
-            background: rgba(0, 0, 0, 0.7);
-            color: white;
-            padding: 0.5rem 1rem;
-            border-radius: 20px;
-            font-size: 0.9rem;
-        }
-
-        .status {
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            color: white;
-            font-size: 1.2rem;
-            text-align: center;
-            background: rgba(0, 0, 0, 0.7);
-            padding: 1rem 2rem;
-            border-radius: 10px;
-        }
-
-        .device-status {
-            position: absolute;
-            top: 1rem;
-            right: 1rem;
-            background: rgba(0, 0, 0, 0.7);
-            color: white;
-            padding: 0.5rem 1rem;
-            border-radius: 20px;
-            font-size: 0.8rem;
-            display: flex;
-            gap: 0.5rem;
-        }
-
-        .device-dot {
-            width: 10px;
-            height: 10px;
-            border-radius: 50%;
-            display: inline-block;
-        }
-
-        .device-on {
-            background: #4CAF50;
-        }
-
-        .device-off {
-            background: #f44336;
-        }
-
-        /* Адаптивность */
-        @media (max-width: 768px) {
-            .video-container {
-                grid-template-columns: 1fr;
-                padding: 1rem;
-            }
-            
-            .header {
-                padding: 1rem;
-                flex-direction: column;
-                gap: 1rem;
-            }
-            
-            .header h1 {
-                font-size: 1.2rem;
-            }
-            
-            .controls {
-                gap: 0.5rem;
-            }
-            
-            .btn {
-                padding: 0.5rem 1rem;
-                font-size: 0.8rem;
-            }
-        }
-
-        .hidden {
-            display: none;
-        }
-
-        .pulse {
-            animation: pulse 2s infinite;
-        }
-
-        @keyframes pulse {
-            0% { transform: scale(1); }
-            50% { transform: scale(1.05); }
-            100% { transform: scale(1); }
-        }
-    </style>
-</head>
-<body>
-    <div class="header">
-        <h1>📞 {{ chat_room.name }} - Видеозвонок</h1>
-        <div class="controls">
-            <button class="btn btn-secondary" onclick="toggleVideo()" id="videoBtn">
-                <span>🎥</span>
-                <span id="videoToggleText">Выкл видео</span>
-            </button>
-            <button class="btn btn-secondary" onclick="toggleAudio()" id="audioBtn">
-                <span>🎤</span>
-                <span id="audioToggleText">Выкл звук</span>
-            </button>
-            <button class="btn btn-danger" onclick="endCall()">
-                <span>📞</span>
-                Завершить
-            </button>
-        </div>
-    </div>
-
-    <div class="video-container">
-        <div class="video-wrapper">
-            <video id="localVideo" autoplay muted></video>
-            <div id="localPlaceholder" class="video-placeholder hidden">
-                <span>📹</span>
-            </div>
-            <div class="video-label">Вы ({{ current_user.username }})</div>
-            <div id="localStatus" class="status">Запрос доступа к устройствам...</div>
-            <div id="localDeviceStatus" class="device-status hidden">
-                <span class="device-dot device-on" id="videoStatusDot"></span>
-                <span class="device-dot device-on" id="audioStatusDot"></span>
-            </div>
-        </div>
-        
-        <div class="video-wrapper">
-            <video id="remoteVideo" autoplay></video>
-            <div id="remotePlaceholder" class="video-placeholder">
-                <span>👤</span>
-            </div>
-            <div class="video-label">Собеседник</div>
-            <div id="remoteStatus" class="status">Ожидание подключения...</div>
-        </div>
-    </div>
-
-    <script src="https://cdn.socket.io/4.5.0/socket.io.min.js"></script>
-    <script>
+<script>
         const socket = io();
         const chatRoomId = {{ chat_room.id }};
         let localStream;
@@ -261,37 +8,43 @@
         let isAudioEnabled = false;
         let hasVideo = false;
         let hasAudio = false;
+        let isCallActive = false;
 
         // Конфигурация STUN серверов
         const configuration = {
             iceServers: [
                 { urls: 'stun:stun.l.google.com:19302' },
-                { urls: 'stun:stun1.l.google.com:19302' }
+                { urls: 'stun:stun1.l.google.com:19302' },
+                { urls: 'stun:stun2.l.google.com:19302' }
             ]
         };
 
         // Инициализация звонка
         async function initializeCall() {
             try {
+                showStatus('localStatus', 'Запрос доступа к устройствам...');
+                
                 // Сначала пробуем получить только аудио
                 const audioConstraints = { 
                     audio: {
                         echoCancellation: true,
-                        noiseSuppression: true
+                        noiseSuppression: true,
+                        autoGainControl: true
                     } 
                 };
                 
                 localStream = await navigator.mediaDevices.getUserMedia(audioConstraints);
                 hasAudio = true;
                 isAudioEnabled = true;
-                console.log('Аудио получено успешно');
+                console.log('✅ Аудио получено успешно');
                 
                 // Пробуем получить видео отдельно
                 try {
                     const videoConstraints = { 
                         video: {
-                            width: { ideal: 1280 },
-                            height: { ideal: 720 }
+                            width: { ideal: 640 },
+                            height: { ideal: 480 },
+                            frameRate: { ideal: 24 }
                         } 
                     };
                     const videoStream = await navigator.mediaDevices.getUserMedia(videoConstraints);
@@ -300,17 +53,17 @@
                     });
                     hasVideo = true;
                     isVideoEnabled = true;
-                    console.log('Видео получено успешно');
+                    console.log('✅ Видео получено успешно');
                 } catch (videoError) {
-                    console.log('Видео недоступно, продолжаем без него:', videoError);
+                    console.log('📹 Видео недоступно, продолжаем без него:', videoError);
                     hasVideo = false;
                     isVideoEnabled = false;
                     document.getElementById('videoBtn').disabled = true;
                 }
                 
             } catch (audioError) {
-                console.error('Не удалось получить аудио:', audioError);
-                document.getElementById('localStatus').textContent = 'Не удалось получить доступ к микрофону';
+                console.error('🎤 Не удалось получить аудио:', audioError);
+                showStatus('localStatus', '❌ Не удалось получить доступ к микрофону');
                 document.getElementById('audioBtn').disabled = true;
                 return;
             }
@@ -318,25 +71,10 @@
             // Настраиваем интерфейс
             setupInterface();
             
-            // Создаем Peer Connection
-            createPeerConnection();
+            // Инициализируем WebRTC соединение
+            initializeWebRTC();
             
-            // Добавляем локальный поток
-            localStream.getTracks().forEach(track => {
-                peerConnection.addTrack(track, localStream);
-            });
-            
-            // Слушаем события
-            socket.on('webrtc_offer', handleOffer);
-            socket.on('webrtc_answer', handleAnswer);
-            socket.on('webrtc_ice_candidate', handleNewICECandidate);
-            socket.on('user_joined_call', handleUserJoined);
-            socket.on('user_left_call', handleUserLeft);
-            
-            // Уведомляем других о подключении
-            socket.emit('join_call', { room: chatRoomId });
-            
-            console.log('Звонок инициализирован. Видео:', hasVideo, 'Аудио:', hasAudio);
+            console.log('🚀 Звонок инициализирован. Видео:', hasVideo, 'Аудио:', hasAudio);
         }
 
         function setupInterface() {
@@ -359,6 +97,192 @@
             // Скрываем статус загрузки
             document.getElementById('localStatus').classList.add('hidden');
             document.getElementById('localDeviceStatus').classList.remove('hidden');
+            
+            showStatus('localStatus', '✅ Готов к подключению');
+        }
+
+        function initializeWebRTC() {
+            // Создаем Peer Connection
+            createPeerConnection();
+            
+            // Добавляем локальный поток
+            localStream.getTracks().forEach(track => {
+                peerConnection.addTrack(track, localStream);
+                console.log('➕ Добавлен трек:', track.kind, track.id);
+            });
+            
+            // Слушаем события WebRTC
+            socket.on('webrtc_offer', handleOffer);
+            socket.on('webrtc_answer', handleAnswer);
+            socket.on('webrtc_ice_candidate', handleNewICECandidate);
+            socket.on('user_joined_call', handleUserJoined);
+            socket.on('user_left_call', handleUserLeft);
+            socket.on('webrtc_error', handleWebRTCError);
+            
+            // Уведомляем других о подключении
+            socket.emit('join_call', { 
+                room: chatRoomId,
+                user_id: '{{ current_user.id }}',
+                username: '{{ current_user.username }}'
+            });
+            
+            console.log('📡 Подключен к комнате:', chatRoomId);
+        }
+
+        function createPeerConnection() {
+            peerConnection = new RTCPeerConnection(configuration);
+            
+            // Обработка входящего потока
+            peerConnection.ontrack = (event) => {
+                console.log('🎬 Получен удаленный поток:', event.streams[0]);
+                remoteStream = event.streams[0];
+                const remoteVideo = document.getElementById('remoteVideo');
+                const remotePlaceholder = document.getElementById('remotePlaceholder');
+                
+                if (remoteStream.getVideoTracks().length > 0) {
+                    remoteVideo.srcObject = remoteStream;
+                    remoteVideo.classList.remove('hidden');
+                    remotePlaceholder.classList.add('hidden');
+                    console.log('✅ Видео собеседника подключено');
+                } else {
+                    remoteVideo.classList.add('hidden');
+                    remotePlaceholder.classList.remove('hidden');
+                    console.log('📹 У собеседника нет видео');
+                }
+                
+                if (remoteStream.getAudioTracks().length > 0) {
+                    console.log('🎤 Аудио собеседника подключено');
+                }
+                
+                showStatus('remoteStatus', '✅ Подключено');
+                isCallActive = true;
+            };
+            
+            // Обработка ICE кандидатов
+            peerConnection.onicecandidate = (event) => {
+                if (event.candidate) {
+                    console.log('🧊 Отправляем ICE кандидат:', event.candidate);
+                    socket.emit('webrtc_ice_candidate', {
+                        room: chatRoomId,
+                        candidate: event.candidate,
+                        user_id: '{{ current_user.id }}'
+                    });
+                } else {
+                    console.log('✅ Все ICE кандидаты собраны');
+                }
+            };
+            
+            // Обработка изменения состояния соединения
+            peerConnection.onconnectionstatechange = () => {
+                const state = peerConnection.connectionState;
+                console.log('🔗 Состояние соединения:', state);
+                
+                if (state === 'connected') {
+                    showStatus('remoteStatus', '✅ Подключено');
+                    isCallActive = true;
+                } else if (state === 'disconnected') {
+                    showStatus('remoteStatus', '⚠️ Соединение нестабильно');
+                } else if (state === 'failed') {
+                    showStatus('remoteStatus', '❌ Соединение прервано');
+                    isCallActive = false;
+                } else if (state === 'connecting') {
+                    showStatus('remoteStatus', '🔄 Подключение...');
+                }
+            };
+            
+            peerConnection.oniceconnectionstatechange = () => {
+                console.log('❄️ ICE состояние:', peerConnection.iceConnectionState);
+            };
+        }
+
+        // Обработчики WebRTC событий
+        async function handleOffer(data) {
+            console.log('📨 Получен OFFER от:', data.from_user);
+            try {
+                await peerConnection.setRemoteDescription(data.offer);
+                console.log('✅ Remote description установлен');
+                
+                const answer = await peerConnection.createAnswer();
+                await peerConnection.setLocalDescription(answer);
+                console.log('✅ ANSWER создан');
+                
+                socket.emit('webrtc_answer', {
+                    room: chatRoomId,
+                    answer: answer,
+                    to_user: data.from_user
+                });
+                
+            } catch (error) {
+                console.error('❌ Ошибка обработки OFFER:', error);
+            }
+        }
+
+        async function handleAnswer(data) {
+            console.log('📨 Получен ANSWER от:', data.from_user);
+            try {
+                await peerConnection.setRemoteDescription(data.answer);
+                console.log('✅ ANSWER обработан');
+            } catch (error) {
+                console.error('❌ Ошибка обработки ANSWER:', error);
+            }
+        }
+
+        async function handleNewICECandidate(data) {
+            console.log('🧊 Получен ICE кандидат от:', data.from_user);
+            try {
+                await peerConnection.addIceCandidate(data.candidate);
+                console.log('✅ ICE кандидат добавлен');
+            } catch (error) {
+                console.error('❌ Ошибка добавления ICE кандидата:', error);
+            }
+        }
+
+        function handleUserJoined(data) {
+            console.log('👤 Пользователь присоединился:', data.username);
+            showStatus('remoteStatus', `🔄 ${data.username} подключился...`);
+            
+            // Если мы первый в комнате, создаем оффер через 1 секунду
+            setTimeout(() => {
+                if (peerConnection.signalingState === 'stable') {
+                    createOffer();
+                }
+            }, 1000);
+        }
+
+        function handleUserLeft(data) {
+            console.log('👤 Пользователь покинул:', data.username);
+            showStatus('remoteStatus', `❌ ${data.username} покинул звонок`);
+            isCallActive = false;
+            
+            document.getElementById('remoteVideo').srcObject = null;
+            document.getElementById('remoteVideo').classList.add('hidden');
+            document.getElementById('remotePlaceholder').classList.remove('hidden');
+        }
+
+        function handleWebRTCError(data) {
+            console.error('❌ WebRTC ошибка:', data.error);
+            showStatus('remoteStatus', `❌ Ошибка: ${data.error}`);
+        }
+
+        async function createOffer() {
+            console.log('🔄 Создаем OFFER...');
+            try {
+                const offer = await peerConnection.createOffer({
+                    offerToReceiveAudio: true,
+                    offerToReceiveVideo: true
+                });
+                
+                await peerConnection.setLocalDescription(offer);
+                console.log('✅ OFFER создан и установлен');
+                
+                socket.emit('webrtc_offer', {
+                    room: chatRoomId,
+                    offer: offer
+                });
+                
+            } catch (error) {
+                console.error('❌ Ошибка создания OFFER:', error);
+            }
         }
 
         function updateDeviceStatus() {
@@ -373,94 +297,11 @@
                 isAudioEnabled ? 'Выкл звук' : 'Вкл звук';
         }
 
-        function createPeerConnection() {
-            peerConnection = new RTCPeerConnection(configuration);
-            
-            // Обработка входящего потока
-            peerConnection.ontrack = (event) => {
-                remoteStream = event.streams[0];
-                const remoteVideo = document.getElementById('remoteVideo');
-                const remotePlaceholder = document.getElementById('remotePlaceholder');
-                
-                if (remoteStream.getVideoTracks().length > 0) {
-                    remoteVideo.srcObject = remoteStream;
-                    remoteVideo.classList.remove('hidden');
-                    remotePlaceholder.classList.add('hidden');
-                } else {
-                    remoteVideo.classList.add('hidden');
-                    remotePlaceholder.classList.remove('hidden');
-                }
-                
-                document.getElementById('remoteStatus').classList.add('hidden');
-            };
-            
-            // Обработка ICE кандидатов
-            peerConnection.onicecandidate = (event) => {
-                if (event.candidate) {
-                    socket.emit('webrtc_ice_candidate', {
-                        room: chatRoomId,
-                        candidate: event.candidate
-                    });
-                }
-            };
-            
-            // Обработка изменения состояния соединения
-            peerConnection.onconnectionstatechange = () => {
-                const state = peerConnection.connectionState;
-                console.log('Connection state:', state);
-                
-                if (state === 'connected') {
-                    document.getElementById('remoteStatus').textContent = 'Подключено';
-                } else if (state === 'disconnected' || state === 'failed') {
-                    document.getElementById('remoteStatus').textContent = 'Соединение прервано';
-                    document.getElementById('remoteStatus').classList.remove('hidden');
-                }
-            };
-        }
-
-        // Обработчики WebRTC событий
-        async function handleOffer(offer) {
-            await peerConnection.setRemoteDescription(offer);
-            const answer = await peerConnection.createAnswer();
-            await peerConnection.setLocalDescription(answer);
-            
-            socket.emit('webrtc_answer', {
-                room: chatRoomId,
-                answer: answer
-            });
-        }
-
-        async function handleAnswer(answer) {
-            await peerConnection.setRemoteDescription(answer);
-        }
-
-        function handleNewICECandidate(candidate) {
-            peerConnection.addIceCandidate(candidate);
-        }
-
-        function handleUserJoined() {
-            // Если мы первый в комнате, создаем оффер
-            if (peerConnection.signalingState === 'stable') {
-                createOffer();
-            }
-        }
-
-        function handleUserLeft() {
-            document.getElementById('remoteStatus').textContent = 'Собеседник покинул звонок';
-            document.getElementById('remoteStatus').classList.remove('hidden');
-            document.getElementById('remoteVideo').srcObject = null;
-            document.getElementById('remoteVideo').classList.add('hidden');
-            document.getElementById('remotePlaceholder').classList.remove('hidden');
-        }
-
-        async function createOffer() {
-            const offer = await peerConnection.createOffer();
-            await peerConnection.setLocalDescription(offer);
-            
-            socket.emit('webrtc_offer', {
-                room: chatRoomId,
-                offer: offer
-            });
+        function showStatus(elementId, message) {
+            const element = document.getElementById(elementId);
+            element.textContent = message;
+            element.classList.remove('hidden');
+            console.log('📢 Статус:', message);
         }
 
         // Управление медиа
@@ -472,6 +313,7 @@
                 isVideoEnabled = !isVideoEnabled;
                 videoTracks[0].enabled = isVideoEnabled;
                 updateDeviceStatus();
+                console.log('🎥 Видео:', isVideoEnabled ? 'включено' : 'выключено');
             }
         }
 
@@ -481,25 +323,37 @@
                 isAudioEnabled = !isAudioEnabled;
                 audioTracks[0].enabled = isAudioEnabled;
                 updateDeviceStatus();
+                console.log('🎤 Аудио:', isAudioEnabled ? 'включено' : 'выключено');
             }
         }
 
         function endCall() {
+            console.log('📞 Завершение звонка...');
+            
             // Останавливаем все треки
             if (localStream) {
-                localStream.getTracks().forEach(track => track.stop());
+                localStream.getTracks().forEach(track => {
+                    track.stop();
+                    console.log('⏹️ Остановлен трек:', track.kind);
+                });
             }
             
             // Закрываем соединение
             if (peerConnection) {
                 peerConnection.close();
+                console.log('🔌 PeerConnection закрыт');
             }
             
             // Уведомляем сервер
-            socket.emit('leave_call', { room: chatRoomId });
+            socket.emit('leave_call', { 
+                room: chatRoomId,
+                user_id: '{{ current_user.id }}'
+            });
             
             // Возвращаемся в чат
-            window.location.href = '/chat/' + chatRoomId;
+            setTimeout(() => {
+                window.location.href = '/chat/' + chatRoomId;
+            }, 500);
         }
 
         // Обработчики событий страницы
@@ -507,7 +361,8 @@
         window.addEventListener('pagehide', endCall);
 
         // Запускаем звонок при загрузке
-        initializeCall();
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('🚀 Запуск видеозвонка...');
+            initializeCall();
+        });
     </script>
-</body>
-</html>
