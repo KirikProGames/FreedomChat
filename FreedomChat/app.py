@@ -8,32 +8,46 @@ from flask_login import LoginManager, login_user, login_required, logout_user, c
 from flask_socketio import SocketIO, emit, join_room, leave_room
 from werkzeug.security import generate_password_hash, check_password_hash
 from werkzeug.utils import secure_filename
+from authlib.integrations.flask_client import OAuth
 import json
 import base64
 
 app = Flask(__name__)
-app.config['SECRET_KEY'] = 'your-super-secret-key-change-this-in-production'
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///database.db'
+app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'dev-key-change-in-production')
+app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('DATABASE_URL', 'sqlite:///database.db')
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['UPLOAD_FOLDER'] = 'uploads'
 app.config['VOICE_FOLDER'] = 'uploads/voice'
-app.config['MAX_CONTENT_LENGTH'] = 50 * 1024 * 1024  # 50MB
+app.config['MAX_CONTENT_LENGTH'] = 50 * 1024 * 1024
+app.config['JSON_AS_ASCII'] = False  # Фикс кодировки
 
 os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
 os.makedirs(app.config['VOICE_FOLDER'], exist_ok=True)
 os.makedirs('static/avatars', exist_ok=True)
 
 db = SQLAlchemy(app)
-socketio = SocketIO(app, cors_allowed_origins="*")
+socketio = SocketIO(app, cors_allowed_origins="*", logger=True, engineio_logger=True)
 login_manager = LoginManager(app)
 login_manager.login_view = 'login'
+
+# OAuth настройки для Google
+oauth = OAuth(app)
+google = oauth.register(
+    name='google',
+    client_id=os.environ.get('GOOGLE_CLIENT_ID', ''),
+    client_secret=os.environ.get('GOOGLE_CLIENT_SECRET', ''),
+    server_metadata_url='https://accounts.google.com/.well-known/openid_configuration',
+    client_kwargs={
+        'scope': 'openid email profile'
+    }
+)
 
 # Модели БД
 class User(db.Model, UserMixin):
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(50), unique=True, nullable=True)
     email = db.Column(db.String(120), unique=True, nullable=False)
-    password_hash = db.Column(db.String(128), nullable=False)
+    password_hash = db.Column(db.String(128), nullable=True)
     online = db.Column(db.Boolean, default=False)
     avatar = db.Column(db.String(100), default='default.png')
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
@@ -43,6 +57,7 @@ class User(db.Model, UserMixin):
     is_admin = db.Column(db.Boolean, default=False)
     bio = db.Column(db.Text, default='')
     phone = db.Column(db.String(20))
+    google_id = db.Column(db.String(100), unique=True)
     
     messages = db.relationship('Message', backref='author', lazy=True)
     chat_rooms = db.relationship('ChatRoom', secondary='user_chatroom', backref='members')
@@ -51,6 +66,8 @@ class User(db.Model, UserMixin):
         self.password_hash = generate_password_hash(password)
     
     def check_password(self, password):
+        if not self.password_hash:
+            return False
         return check_password_hash(self.password_hash, password)
 
 class ChatRoom(db.Model):
@@ -85,20 +102,63 @@ class Message(db.Model):
     
     reply_to = db.relationship('Message', remote_side=[id], backref='replies')
 
-class Call(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    caller_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
-    receiver_id = db.Column(db.Integer, db.ForeignKey('user.id'))
-    chat_room_id = db.Column(db.Integer, db.ForeignKey('chat_room.id'))
-    call_type = db.Column(db.String(10), default='video')
-    status = db.Column(db.String(20), default='calling')
-    started_at = db.Column(db.DateTime, default=datetime.utcnow)
-    ended_at = db.Column(db.DateTime)
-
 user_chatroom = db.Table('user_chatroom',
     db.Column('user_id', db.Integer, db.ForeignKey('user.id'), primary_key=True),
     db.Column('chat_room_id', db.Integer, db.ForeignKey('chat_room.id'), primary_key=True)
 )
+
+@login_manager.user_loader
+def load_user(user_id):
+    return User.query.get(int(user_id))
+
+@app.after_request
+def after_request(response):
+    response.headers['Content-Type'] = 'application/json; charset=utf-8'
+    return response
+
+def generate_code(length=6):
+    characters = string.ascii_letters + string.digits
+    return ''.join(random.choice(characters) for i in range(length))
+
+def generate_invite_link():
+    return ''.join(random.choice(string.ascii_lowercase + string.digits) for _ in range(10))
+
+# Google OAuth маршруты
+@app.route('/login/google')
+def google_login():
+    redirect_uri = url_for('google_authorize', _external=True)
+    return google.authorize_redirect(redirect_uri)
+
+@app.route('/login/google/authorize')
+def google_authorize():
+    try:
+        token = google.authorize_access_token()
+        user_info = token.get('userinfo')
+        
+        if user_info:
+            user = User.query.filter_by(google_id=user_info['sub']).first()
+            if not user:
+                user = User.query.filter_by(email=user_info['email']).first()
+                if user:
+                    user.google_id = user_info['sub']
+                else:
+                    # Создаем нового пользователя
+                    user = User(
+                        google_id=user_info['sub'],
+                        email=user_info['email'],
+                        username=user_info['email'].split('@')[0],
+                        avatar=user_info.get('picture', 'default.png')
+                    )
+                    db.session.add(user)
+            
+            db.session.commit()
+            login_user(user, remember=True)
+            return redirect(url_for('dashboard'))
+    
+    except Exception as e:
+        flash(f'Ошибка авторизации через Google: {str(e)}')
+    
+    return redirect(url_for('login'))
 
 # WebSocket события
 @socketio.on('connect')
@@ -233,107 +293,7 @@ def handle_voice_message(data):
     except Exception as e:
         emit('error', {'message': f'Voice error: {str(e)}'})
 
-# Звонки
-@socketio.on('start_call')
-def handle_start_call(data):
-    call_type = data.get('type', 'video')
-    receiver_id = data.get('receiver_id')
-    chat_room_id = data.get('chat_room_id')
-    
-    call = Call(
-        caller_id=current_user.id,
-        receiver_id=receiver_id,
-        chat_room_id=chat_room_id,
-        call_type=call_type
-    )
-    db.session.add(call)
-    db.session.commit()
-    
-    emit('incoming_call', {
-        'call_id': call.id,
-        'caller_id': current_user.id,
-        'caller_name': current_user.username or current_user.email,
-        'call_type': call_type,
-        'chat_room_id': chat_room_id
-    }, room=receiver_id if receiver_id else f'chat_{chat_room_id}')
-
-@socketio.on('answer_call')
-def handle_answer_call(data):
-    call_id = data['call_id']
-    call = Call.query.get(call_id)
-    
-    if call:
-        call.status = 'active'
-        db.session.commit()
-        
-        call_room = f'call_{call_id}'
-        emit('call_accepted', {
-            'call_id': call_id,
-            'call_room': call_room
-        }, room=call.caller_id)
-
-@socketio.on('reject_call')
-def handle_reject_call(data):
-    call_id = data['call_id']
-    call = Call.query.get(call_id)
-    
-    if call:
-        call.status = 'ended'
-        call.ended_at = datetime.utcnow()
-        db.session.commit()
-        
-        emit('call_rejected', {
-            'call_id': call_id
-        }, room=call.caller_id)
-
-@socketio.on('end_call')
-def handle_end_call(data):
-    call_id = data['call_id']
-    call = Call.query.get(call_id)
-    
-    if call:
-        call.status = 'ended'
-        call.ended_at = datetime.utcnow()
-        db.session.commit()
-        
-        emit('call_ended', {
-            'call_id': call_id
-        }, room=f'call_{call_id}')
-
-@login_manager.user_loader
-def load_user(user_id):
-    return User.query.get(int(user_id))
-
-def generate_code(length=6):
-    characters = string.ascii_letters + string.digits
-    return ''.join(random.choice(characters) for i in range(length))
-
-def generate_invite_link():
-    return ''.join(random.choice(string.ascii_lowercase + string.digits) for _ in range(10))
-
-# Инициализация БД
-with app.app_context():
-    db.drop_all()
-    db.create_all()
-    
-    admin = User(
-        email='admin@freedomchat.com',
-        username='admin',
-        is_admin=True
-    )
-    admin.set_password('Admin123!')
-    db.session.add(admin)
-    
-    test_user = User(email='test@example.com', username='testuser')
-    test_user.set_password('123456')
-    db.session.add(test_user)
-    
-    db.session.commit()
-    print("✅ База данных создана!")
-    print("🔑 Админ: admin@freedomchat.com / Admin123!")
-    print("👤 Тест: test@example.com / 123456")
-
-# Маршруты
+# Основные маршруты
 @app.route('/')
 def index():
     if current_user.is_authenticated:
@@ -543,17 +503,6 @@ def upload_file():
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
-@app.route('/admin')
-@login_required
-def admin_panel():
-    if not current_user.is_admin:
-        flash('Доступ запрещен')
-        return redirect(url_for('dashboard'))
-    
-    users = User.query.all()
-    chats = ChatRoom.query.all()
-    return render_template('admin.html', users=users, chats=chats)
-
 @app.route('/logout')
 @login_required
 def logout():
@@ -562,11 +511,31 @@ def logout():
     logout_user()
     return redirect(url_for('login'))
 
-# Обработка всех остальных маршрутов
-@app.route('/<path:path>')
-def catch_all(path):
-    return redirect(url_for('index'))
+# Инициализация БД
+with app.app_context():
+    db.create_all()
+    
+    # Создаем тестовых пользователей если их нет
+    if not User.query.filter_by(email='admin@freedomchat.com').first():
+        admin = User(
+            email='admin@freedomchat.com',
+            username='admin',
+            is_admin=True
+        )
+        admin.set_password('Admin123!')
+        db.session.add(admin)
+    
+    if not User.query.filter_by(email='test@example.com').first():
+        test_user = User(email='test@example.com', username='testuser')
+        test_user.set_password('123456')
+        db.session.add(test_user)
+    
+    db.session.commit()
+    print("✅ База данных создана!")
+    print("🔑 Админ: admin@freedomchat.com / Admin123!")
+    print("👤 Тест: test@example.com / 123456")
 
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5001))
-    socketio.run(app, host='0.0.0.0', port=port, debug=True)
+    debug = os.environ.get('FLASK_DEBUG', 'False').lower() == 'true'
+    socketio.run(app, host='0.0.0.0', port=port, debug=debug, allow_unsafe_werkzeug=True)
