@@ -338,7 +338,14 @@
     <div class="container">
         <div class="header">
             <h1>⚡ Админ-панель</h1>
-            <a href="{{ url_for('dashboard') }}" class="back-btn">← Назад в чат</a>
+            <div>
+                <a href="{{ url_for('dashboard') }}" class="back-btn">← Назад в чат</a>
+                {% if current_user.is_super_admin %}
+                <span class="badge badge-red" style="margin-left: 1rem;">🔴 Создатель</span>
+                {% elif current_user.is_admin %}
+                <span class="badge badge-purple" style="margin-left: 1rem;">🟣 Админ</span>
+                {% endif %}
+            </div>
         </div>
 
         <div class="content">
@@ -355,7 +362,7 @@
 
             <!-- Табы -->
             <div class="tabs">
-                <button class="tab active" onclick="openTab('users')">👥 Пользователи</button>
+                <button class="tab active" onclick="openTab('users')">👥 Пользователи ({{ users|length }})</button>
                 <button class="tab" onclick="openTab('create-user')">➕ Создать пользователя</button>
                 <button class="tab" onclick="openTab('stats')">📊 Статистика</button>
             </div>
@@ -419,6 +426,10 @@
                                     🗑️ Удалить
                                 </button>
                             </form>
+                            {% elif current_user.is_admin and user.id != current_user.id and not user.is_super_admin %}
+                            <button class="btn btn-primary btn-sm" onclick="openBadgeModal({{ user.id }}, '{{ user.username }}', '{{ user.badge }}')">
+                                🎖️ Галочка
+                            </button>
                             {% endif %}
                         </div>
                     </div>
@@ -450,7 +461,7 @@
                         <label for="badge">Галочка</label>
                         <select id="badge" name="badge" class="form-control">
                             <option value="">Без галочки</option>
-                            <option value="red">🔴 Создатель</option>
+                            <option value="red">🔴 Создатель (только для супер-админа)</option>
                             <option value="blue">🔵 Владелец канала</option>
                             <option value="yellow">🟡 Популярная личность</option>
                             <option value="purple">🟣 Администратор</option>
@@ -481,16 +492,36 @@
                         <div class="stat-label">Всего пользователей</div>
                     </div>
                     <div class="stat-card">
-                        <div class="stat-number">{{ users|selectattr('online')|list|length }}</div>
+                        <div class="stat-number">{{ online_users_count }}</div>
                         <div class="stat-label">Онлайн сейчас</div>
                     </div>
                     <div class="stat-card">
-                        <div class="stat-number">{{ users|selectattr('is_admin')|list|length }}</div>
+                        <div class="stat-number">{{ admins_count }}</div>
                         <div class="stat-label">Администраторов</div>
                     </div>
                     <div class="stat-card">
                         <div class="stat-number">{{ chat_rooms_count }}</div>
                         <div class="stat-label">Активных чатов</div>
+                    </div>
+                </div>
+                
+                <h3 style="margin-top: 2rem;">Распределение галочек</h3>
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <div class="stat-number">{{ users|selectattr('badge', 'equalto', 'red')|list|length }}</div>
+                        <div class="stat-label">🔴 Создатели</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-number">{{ users|selectattr('badge', 'equalto', 'blue')|list|length }}</div>
+                        <div class="stat-label">🔵 Владельцы каналов</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-number">{{ users|selectattr('badge', 'equalto', 'yellow')|list|length }}</div>
+                        <div class="stat-label">🟡 Популярные личности</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-number">{{ users|selectattr('badge', 'equalto', 'purple')|list|length }}</div>
+                        <div class="stat-label">🟣 Администраторы</div>
                     </div>
                 </div>
             </div>
@@ -513,10 +544,12 @@
                             <input type="radio" name="badge" value="" id="badge_none">
                             <span>❌ Без галочки</span>
                         </label>
+                        {% if current_user.is_super_admin %}
                         <label style="display: flex; align-items: center; gap: 0.5rem;">
                             <input type="radio" name="badge" value="red" id="badge_red">
                             <span class="badge badge-red">🔴 Создатель мессенджера</span>
                         </label>
+                        {% endif %}
                         <label style="display: flex; align-items: center; gap: 0.5rem;">
                             <input type="radio" name="badge" value="blue" id="badge_blue">
                             <span class="badge badge-blue">🔵 Владелец крупного канала</span>
@@ -529,10 +562,12 @@
                             <input type="radio" name="badge" value="purple" id="badge_purple">
                             <span class="badge badge-purple">🟣 Администратор</span>
                         </label>
+                        {% if current_user.is_super_admin %}
                         <label style="display: flex; align-items: center; gap: 0.5rem;">
                             <input type="radio" name="badge" value="admin" id="badge_admin">
                             <span class="badge badge-admin">⚡ Системный администратор</span>
                         </label>
+                        {% endif %}
                     </div>
                 </div>
                 <div style="margin-top: 1rem; display: flex; gap: 1rem;">
@@ -603,7 +638,10 @@
             
             // Установить текущую галочку
             if (currentBadge) {
-                document.getElementById(`badge_${currentBadge}`).checked = true;
+                const radio = document.getElementById(`badge_${currentBadge}`);
+                if (radio) {
+                    radio.checked = true;
+                }
             } else {
                 document.getElementById('badge_none').checked = true;
             }
@@ -641,11 +679,6 @@
                 closeEditModal();
             }
         }
-
-        // Автоматическое обновление статистики каждые 30 секунд
-        setInterval(() => {
-            // Можно добавить AJAX-обновление статистики
-        }, 30000);
     </script>
 </body>
 </html>
