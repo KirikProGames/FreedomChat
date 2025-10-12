@@ -9,6 +9,7 @@ from flask_socketio import SocketIO, emit, join_room, leave_room
 from werkzeug.security import generate_password_hash, check_password_hash
 from werkzeug.utils import secure_filename
 from authlib.integrations.flask_client import OAuth
+from flask_migrate import Migrate
 import json
 import base64
 
@@ -26,6 +27,7 @@ os.makedirs(app.config['VOICE_FOLDER'], exist_ok=True)
 os.makedirs('static/avatars', exist_ok=True)
 
 db = SQLAlchemy(app)
+migrate = Migrate(app, db)  # Добавляем миграции
 socketio = SocketIO(app, cors_allowed_origins="*", logger=True, engineio_logger=True)
 login_manager = LoginManager(app)
 login_manager.login_view = 'login'
@@ -57,7 +59,7 @@ class User(db.Model, UserMixin):
     is_admin = db.Column(db.Boolean, default=False)
     bio = db.Column(db.Text, default='')
     phone = db.Column(db.String(20))
-    google_id = db.Column(db.String(100), unique=True)
+    google_id = db.Column(db.String(100), unique=True, nullable=True)  # Исправлено: добавлено nullable=True
     
     messages = db.relationship('Message', backref='author', lazy=True)
     chat_rooms = db.relationship('ChatRoom', secondary='user_chatroom', backref='members')
@@ -579,23 +581,57 @@ def logout():
 
 # Инициализация БД
 with app.app_context():
-    db.create_all()
-    
-    if not User.query.filter_by(email='admin@freedomchat.com').first():
+    try:
+        db.create_all()
+        
+        # Проверяем существование колонки google_id
+        from sqlalchemy import inspect
+        inspector = inspect(db.engine)
+        columns = [col['name'] for col in inspector.get_columns('user')]
+        
+        if 'google_id' not in columns:
+            # Если колонки нет, создаем её через миграцию
+            db.engine.execute('ALTER TABLE user ADD COLUMN google_id VARCHAR(100)')
+            print("Added google_id column to user table")
+        
+        if not User.query.filter_by(email='admin@freedomchat.com').first():
+            admin = User(
+                email='admin@freedomchat.com',
+                username='admin',
+                is_admin=True
+            )
+            admin.set_password('Admin123!')
+            db.session.add(admin)
+        
+        if not User.query.filter_by(email='test@example.com').first():
+            test_user = User(email='test@example.com', username='testuser')
+            test_user.set_password('123456')
+            db.session.add(test_user)
+        
+        db.session.commit()
+        print("Database initialized successfully")
+        
+    except Exception as e:
+        print(f"Database initialization error: {e}")
+        # Если есть ошибка, пробуем пересоздать таблицы
+        db.drop_all()
+        db.create_all()
+        
+        # Создаем тестовых пользователей
         admin = User(
             email='admin@freedomchat.com',
             username='admin',
             is_admin=True
         )
         admin.set_password('Admin123!')
-        db.session.add(admin)
-    
-    if not User.query.filter_by(email='test@example.com').first():
+        
         test_user = User(email='test@example.com', username='testuser')
         test_user.set_password('123456')
+        
+        db.session.add(admin)
         db.session.add(test_user)
-    
-    db.session.commit()
+        db.session.commit()
+        print("Database recreated successfully")
 
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5001))
