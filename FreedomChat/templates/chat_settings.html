@@ -1,0 +1,368 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Настройки чата - {{ chat_room.name }}</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+            overflow: hidden;
+        }
+
+        .header {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            padding: 1.5rem 2rem;
+            color: white;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+
+        .header h1 {
+            font-size: 1.5rem;
+            font-weight: 600;
+        }
+
+        .back-btn {
+            color: white;
+            text-decoration: none;
+            padding: 0.5rem 1rem;
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            border-radius: 20px;
+            transition: all 0.3s ease;
+        }
+
+        .back-btn:hover {
+            background: rgba(255, 255, 255, 0.2);
+        }
+
+        .content {
+            padding: 2rem;
+        }
+
+        .avatar-section {
+            display: flex;
+            align-items: center;
+            gap: 2rem;
+            margin-bottom: 2rem;
+            padding-bottom: 2rem;
+            border-bottom: 1px solid #eee;
+        }
+
+        .avatar-preview {
+            width: 100px;
+            height: 100px;
+            border-radius: 50%;
+            object-fit: cover;
+            border: 3px solid #667eea;
+        }
+
+        .avatar-upload {
+            flex: 1;
+        }
+
+        .form-group {
+            margin-bottom: 1.5rem;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 0.5rem;
+            font-weight: 600;
+            color: #333;
+        }
+
+        .form-control {
+            width: 100%;
+            padding: 0.75rem;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            font-size: 1rem;
+            transition: border-color 0.3s ease;
+        }
+
+        .form-control:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        .checkbox-group {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .checkbox-group input[type="checkbox"] {
+            width: 18px;
+            height: 18px;
+        }
+
+        .btn {
+            padding: 0.75rem 1.5rem;
+            border: none;
+            border-radius: 25px;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-decoration: none;
+            display: inline-block;
+            text-align: center;
+        }
+
+        .btn-primary {
+            background: #4CAF50;
+            color: white;
+        }
+
+        .btn-secondary {
+            background: #6c757d;
+            color: white;
+        }
+
+        .btn-danger {
+            background: #f44336;
+            color: white;
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+        }
+
+        .actions {
+            display: flex;
+            gap: 1rem;
+            margin-top: 2rem;
+            padding-top: 2rem;
+            border-top: 1px solid #eee;
+        }
+
+        .role-badge {
+            display: inline-block;
+            padding: 0.25rem 0.75rem;
+            border-radius: 15px;
+            font-size: 0.8rem;
+            font-weight: 600;
+            margin-left: 1rem;
+        }
+
+        .role-owner {
+            background: #ff9800;
+            color: white;
+        }
+
+        .role-admin {
+            background: #2196F3;
+            color: white;
+        }
+
+        .role-member {
+            background: #6c757d;
+            color: white;
+        }
+
+        .flash-messages {
+            margin-bottom: 1rem;
+        }
+
+        .flash-message {
+            padding: 1rem;
+            border-radius: 8px;
+            margin-bottom: 0.5rem;
+        }
+
+        .flash-success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+
+        .flash-error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+
+        .info-box {
+            background: #e3f2fd;
+            border: 1px solid #2196F3;
+            border-radius: 8px;
+            padding: 1rem;
+            margin-bottom: 1rem;
+        }
+
+        @media (max-width: 768px) {
+            .container {
+                margin: 0 10px;
+            }
+            
+            .header {
+                padding: 1rem;
+            }
+            
+            .content {
+                padding: 1rem;
+            }
+            
+            .avatar-section {
+                flex-direction: column;
+                text-align: center;
+            }
+            
+            .actions {
+                flex-direction: column;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>⚙️ Настройки чата</h1>
+            <a href="{{ url_for('chat', chat_id=chat_room.id) }}" class="back-btn">← Назад в чат</a>
+        </div>
+
+        <div class="content">
+            <!-- Flash сообщения -->
+            <div class="flash-messages">
+                {% with messages = get_flashed_messages(with_categories=true) %}
+                    {% if messages %}
+                        {% for category, message in messages %}
+                            <div class="flash-message flash-{{ category }}">{{ message }}</div>
+                        {% endfor %}
+                    {% endif %}
+                {% endwith %}
+            </div>
+
+            <!-- Информация о роли -->
+            <div class="info-box">
+                <strong>Ваша роль:</strong> 
+                <span class="role-badge role-{{ user_role }}">{{ user_role }}</span>
+                {% if user_role == 'owner' %}
+                    <p style="margin-top: 0.5rem; margin-bottom: 0;">Вы являетесь владельцем этого чата и можете изменять все настройки.</p>
+                {% elif user_role == 'admin' %}
+                    <p style="margin-top: 0.5rem; margin-bottom: 0;">Вы являетесь администратором и можете изменять основные настройки чата.</p>
+                {% else %}
+                    <p style="margin-top: 0.5rem; margin-bottom: 0;">Вы являетесь участником чата. Только владелец и администраторы могут изменять настройки.</p>
+                {% endif %}
+            </div>
+
+            {% if is_owner_or_admin %}
+            <form method="POST" action="{{ url_for('update_chat', chat_id=chat_room.id) }}" enctype="multipart/form-data">
+                <!-- Аватар чата -->
+                <div class="avatar-section">
+                    <div>
+                        <img src="{{ url_for('serve_chat_avatar', filename=chat_room.avatar) }}" 
+                             alt="Аватар чата" class="avatar-preview" id="avatarPreview">
+                    </div>
+                    <div class="avatar-upload">
+                        <div class="form-group">
+                            <label for="avatar">Аватар чата</label>
+                            <input type="file" id="avatar" name="avatar" accept="image/*" 
+                                   class="form-control" onchange="previewAvatar(this)">
+                            <small>Рекомендуемый размер: 200x200 пикселей</small>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Основная информация -->
+                <div class="form-group">
+                    <label for="name">Название чата</label>
+                    <input type="text" id="name" name="name" class="form-control" 
+                           value="{{ chat_room.name }}" required>
+                </div>
+
+                <div class="form-group">
+                    <label for="description">Описание чата</label>
+                    <textarea id="description" name="description" class="form-control" 
+                              rows="3" placeholder="Описание чата...">{{ chat_room.description or '' }}</textarea>
+                </div>
+
+                <!-- Настройки чата -->
+                <div class="form-group">
+                    <label>Настройки сообщений</label>
+                    <div class="checkbox-group">
+                        <input type="checkbox" id="only_admins_can_post" name="only_admins_can_post" 
+                               {{ 'checked' if chat_room.get_settings().get('only_admins_can_post') else '' }}>
+                        <label for="only_admins_can_post">Только администраторы могут отправлять сообщения</label>
+                    </div>
+                    <small>Если включено, обычные участники не смогут писать в чат</small>
+                </div>
+
+                <!-- Действия -->
+                <div class="actions">
+                    <button type="submit" class="btn btn-primary">💾 Сохранить изменения</button>
+                    <a href="{{ url_for('chat_members', chat_id=chat_room.id) }}" class="btn btn-secondary">👥 Управление участниками</a>
+                    <a href="{{ url_for('chat', chat_id=chat_room.id) }}" class="btn btn-secondary">← Отмена</a>
+                </div>
+            </form>
+            {% else %}
+            <div class="info-box">
+                <h3>🔒 Доступ ограничен</h3>
+                <p>Только владелец и администраторы могут изменять настройки этого чата.</p>
+                <div class="actions">
+                    <a href="{{ url_for('chat', chat_id=chat_room.id) }}" class="btn btn-secondary">← Назад в чат</a>
+                    <a href="{{ url_for('chat_members', chat_id=chat_room.id) }}" class="btn btn-secondary">👥 Посмотреть участников</a>
+                </div>
+            </div>
+            {% endif %}
+
+            <!-- Информация о чате -->
+            <div style="margin-top: 2rem; padding-top: 2rem; border-top: 1px solid #eee;">
+                <h3>📊 Информация о чате</h3>
+                <p><strong>Тип:</strong> 
+                    {% if chat_room.is_direct %}Личные сообщения
+                    {% elif chat_room.is_channel %}Канал
+                    {% else %}Групповой чат
+                    {% endif %}
+                </p>
+                <p><strong>Приватность:</strong> {{ 'Приватный' if chat_room.is_private else 'Публичный' }}</p>
+                <p><strong>Создан:</strong> {{ chat_room.created_at.strftime('%d.%m.%Y %H:%M') }}</p>
+                {% if chat_room.code %}
+                <p><strong>Код приглашения:</strong> <code>{{ chat_room.code }}</code></p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function previewAvatar(input) {
+            const preview = document.getElementById('avatarPreview');
+            if (input.files && input.files[0]) {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    preview.src = e.target.result;
+                }
+                reader.readAsDataURL(input.files[0]);
+            }
+        }
+
+        // Показываем текущий аватар
+        document.addEventListener('DOMContentLoaded', function() {
+            const currentAvatar = "{{ url_for('serve_chat_avatar', filename=chat_room.avatar) }}";
+            document.getElementById('avatarPreview').src = currentAvatar;
+        });
+    </script>
+</body>
+</html>
