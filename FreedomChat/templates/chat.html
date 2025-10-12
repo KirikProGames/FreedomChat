@@ -1,552 +1,819 @@
-{% extends "base.html" %}
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ chat_room.name }} - FreedomChat</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
 
-{% block content %}
-<div class="chat-container">
-    <!-- Header -->
-    <div class="chat-header">
-        <div style="display: flex; align-items: center; gap: 16px;">
-            <a href="{{ url_for('dashboard') }}" class="btn btn-secondary" 
-               style="background: rgba(255,255,255,0.2); border-color: rgba(255,255,255,0.3); color: white; padding: 10px;">
-                ←
-            </a>
-            <div>
-                <h1 style="font-size: 20px; font-weight: 700; margin-bottom: 4px;">{{ chat_room.name }}</h1>
-                <div style="font-size: 14px; opacity: 0.9;">
-                    {% if chat_room.is_private %}
-                    🔒 Приватный чат • {{ chat_room.members|length }} участников
-                    {% else %}
-                    🌐 Публичный чат • {{ chat_room.members|length }} участников
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .chat-container {
+            display: flex;
+            height: 100vh;
+            background: white;
+            margin: 0 auto;
+            box-shadow: 0 0 20px rgba(0, 0, 0, 0.1);
+        }
+
+        .sidebar {
+            width: 300px;
+            background: #2c3e50;
+            color: white;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .sidebar-header {
+            padding: 1.5rem;
+            background: #34495e;
+            border-bottom: 1px solid #34495e;
+        }
+
+        .sidebar-header h2 {
+            margin: 0;
+            font-size: 1.2rem;
+        }
+
+        .back-btn {
+            color: #ecf0f1;
+            text-decoration: none;
+            display: inline-block;
+            margin-bottom: 0.5rem;
+            padding: 0.3rem 0.8rem;
+            border: 1px solid #ecf0f1;
+            border-radius: 15px;
+            font-size: 0.8rem;
+        }
+
+        .back-btn:hover {
+            background: rgba(255, 255, 255, 0.1);
+        }
+
+        .chat-actions {
+            display: flex;
+            gap: 0.5rem;
+            margin-top: 1rem;
+        }
+
+        .btn {
+            padding: 0.5rem 1rem;
+            border: none;
+            border-radius: 20px;
+            font-size: 0.9rem;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-decoration: none;
+            display: inline-block;
+            text-align: center;
+        }
+
+        .btn-sm {
+            padding: 0.4rem 0.8rem;
+            font-size: 0.8rem;
+        }
+
+        .btn-secondary {
+            background: #95a5a6;
+            color: white;
+        }
+
+        .btn-primary {
+            background: #3498db;
+            color: white;
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+        }
+
+        .users-list {
+            flex: 1;
+            overflow-y: auto;
+            padding: 1rem;
+        }
+
+        .user-item {
+            display: flex;
+            align-items: center;
+            padding: 0.75rem;
+            margin-bottom: 0.5rem;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 10px;
+            transition: background 0.3s ease;
+        }
+
+        .user-item:hover {
+            background: rgba(255, 255, 255, 0.2);
+        }
+
+        .user-avatar {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            margin-right: 1rem;
+            object-fit: cover;
+        }
+
+        .user-info h4 {
+            margin: 0;
+            font-size: 0.9rem;
+        }
+
+        .user-info p {
+            margin: 0;
+            font-size: 0.8rem;
+            color: #bdc3c7;
+        }
+
+        .online-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #2ecc71;
+            display: inline-block;
+            margin-right: 0.5rem;
+        }
+
+        .offline {
+            background: #95a5a6;
+        }
+
+        .chat-main {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .chat-header {
+            background: #ecf0f1;
+            padding: 1rem 1.5rem;
+            border-bottom: 1px solid #bdc3c7;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .chat-title {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+
+        .chat-avatar {
+            width: 50px;
+            height: 50px;
+            border-radius: 50%;
+            object-fit: cover;
+        }
+
+        .chat-info h2 {
+            margin: 0;
+            color: #2c3e50;
+            font-size: 1.3rem;
+        }
+
+        .chat-info p {
+            margin: 0;
+            color: #7f8c8d;
+            font-size: 0.9rem;
+        }
+
+        .header-actions {
+            display: flex;
+            gap: 0.5rem;
+        }
+
+        .call-btn {
+            background: #27ae60;
+            color: white;
+            padding: 0.7rem 1.2rem;
+            border: none;
+            border-radius: 25px;
+            text-decoration: none;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            transition: all 0.3s ease;
+        }
+
+        .call-btn:hover {
+            background: #219a52;
+            transform: translateY(-2px);
+        }
+
+        .messages-container {
+            flex: 1;
+            overflow-y: auto;
+            padding: 1.5rem;
+            background: #f8f9fa;
+        }
+
+        .message {
+            margin-bottom: 1.5rem;
+            padding: 1rem;
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+            max-width: 70%;
+        }
+
+        .message.own {
+            margin-left: auto;
+            background: #3498db;
+            color: white;
+        }
+
+        .message-header {
+            display: flex;
+            align-items: center;
+            margin-bottom: 0.5rem;
+        }
+
+        .message-avatar {
+            width: 30px;
+            height: 30px;
+            border-radius: 50%;
+            margin-right: 0.75rem;
+            object-fit: cover;
+        }
+
+        .message-sender {
+            font-weight: 600;
+            font-size: 0.9rem;
+        }
+
+        .message-time {
+            font-size: 0.8rem;
+            color: #7f8c8d;
+            margin-left: auto;
+        }
+
+        .message.own .message-time {
+            color: rgba(255, 255, 255, 0.8);
+        }
+
+        .message-content {
+            line-height: 1.4;
+        }
+
+        .message-file {
+            margin-top: 0.5rem;
+            padding: 0.5rem;
+            background: rgba(0, 0, 0, 0.05);
+            border-radius: 5px;
+            font-size: 0.9rem;
+        }
+
+        .message.own .message-file {
+            background: rgba(255, 255, 255, 0.2);
+        }
+
+        .voice-message {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.5rem;
+            background: rgba(0, 0, 0, 0.05);
+            border-radius: 20px;
+        }
+
+        .message.own .voice-message {
+            background: rgba(255, 255, 255, 0.2);
+        }
+
+        .voice-play-btn {
+            background: #3498db;
+            color: white;
+            border: none;
+            border-radius: 50%;
+            width: 30px;
+            height: 30px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+        }
+
+        .message.own .voice-play-btn {
+            background: white;
+            color: #3498db;
+        }
+
+        .input-container {
+            padding: 1.5rem;
+            background: white;
+            border-top: 1px solid #bdc3c7;
+            display: flex;
+            gap: 1rem;
+            align-items: flex-end;
+        }
+
+        .message-input {
+            flex: 1;
+            padding: 1rem;
+            border: 1px solid #bdc3c7;
+            border-radius: 25px;
+            font-size: 1rem;
+            resize: none;
+            outline: none;
+            max-height: 120px;
+            font-family: inherit;
+        }
+
+        .message-input:focus {
+            border-color: #3498db;
+        }
+
+        .input-actions {
+            display: flex;
+            gap: 0.5rem;
+        }
+
+        .action-btn {
+            background: none;
+            border: none;
+            font-size: 1.5rem;
+            cursor: pointer;
+            padding: 0.5rem;
+            border-radius: 50%;
+            transition: background 0.3s ease;
+        }
+
+        .action-btn:hover {
+            background: #ecf0f1;
+        }
+
+        .send-btn {
+            background: #3498db;
+            color: white;
+            border: none;
+            border-radius: 50%;
+            width: 50px;
+            height: 50px;
+            font-size: 1.2rem;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .send-btn:hover {
+            background: #2980b9;
+            transform: scale(1.05);
+        }
+
+        .send-btn:disabled {
+            background: #bdc3c7;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .permission-warning {
+            background: #fff3cd;
+            color: #856404;
+            padding: 1rem;
+            text-align: center;
+            border: 1px solid #ffeaa7;
+            border-radius: 10px;
+            margin: 1rem;
+        }
+
+        .typing-indicator {
+            padding: 0.5rem 1rem;
+            font-style: italic;
+            color: #7f8c8d;
+            font-size: 0.9rem;
+        }
+
+        @media (max-width: 768px) {
+            .chat-container {
+                flex-direction: column;
+            }
+            
+            .sidebar {
+                width: 100%;
+                height: 200px;
+            }
+            
+            .messages-container {
+                padding: 1rem;
+            }
+            
+            .message {
+                max-width: 85%;
+            }
+            
+            .input-container {
+                padding: 1rem;
+            }
+        }
+
+        .role-badge {
+            display: inline-block;
+            padding: 0.2rem 0.6rem;
+            border-radius: 12px;
+            font-size: 0.7rem;
+            font-weight: 600;
+            margin-left: 0.5rem;
+        }
+
+        .role-owner {
+            background: #ff9800;
+            color: white;
+        }
+
+        .role-admin {
+            background: #2196F3;
+            color: white;
+        }
+
+        .role-member {
+            background: #6c757d;
+            color: white;
+        }
+    </style>
+</head>
+<body>
+    <div class="chat-container">
+        <!-- Боковая панель -->
+        <div class="sidebar">
+            <div class="sidebar-header">
+                <a href="{{ url_for('dashboard') }}" class="back-btn">← Назад</a>
+                <h2>Участники</h2>
+                <div class="chat-actions">
+                    <a href="{{ url_for('chat_settings', chat_id=chat_room.id) }}" class="btn btn-secondary btn-sm">⚙️ Настройки</a>
+                    <a href="{{ url_for('chat_members', chat_id=chat_room.id) }}" class="btn btn-secondary btn-sm">👥 Участники</a>
+                </div>
+            </div>
+            
+            <div class="users-list">
+                {% for user in chat_room.members %}
+                <div class="user-item">
+                    <img src="{{ url_for('static', filename='avatars/' + user.avatar) }}" 
+                         alt="{{ user.username }}" class="user-avatar">
+                    <div class="user-info">
+                        <h4>
+                            <span class="online-dot {{ 'offline' if not user.online else '' }}"></span>
+                            {{ user.username }}
+                            {% if user.id == current_user.id %}(Вы){% endif %}
+                        </h4>
+                        <p>{{ user.status or 'Нет статуса' }}</p>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+
+        <!-- Основная область чата -->
+        <div class="chat-main">
+            <!-- Шапка чата -->
+            <div class="chat-header">
+                <div class="chat-title">
+                    <img src="{{ url_for('serve_chat_avatar', filename=chat_room.avatar) }}" 
+                         alt="{{ chat_room.name }}" class="chat-avatar">
+                    <div class="chat-info">
+                        <h2>{{ chat_room.name }}</h2>
+                        <p>
+                            {% if chat_room.is_direct %}Личные сообщения
+                            {% elif chat_room.is_channel %}Канал
+                            {% else %}Групповой чат
+                            {% endif %}
+                            {% if not can_send_messages %} • 🔒 Только админы могут писать{% endif %}
+                        </p>
+                    </div>
+                </div>
+                
+                <div class="header-actions">
+                    {% if user_role %}
+                    <span class="role-badge role-{{ user_role }}">{{ user_role }}</span>
                     {% endif %}
+                    <a href="{{ url_for('video_call', chat_id=chat_room.id) }}" class="call-btn">
+                        📞 Видеозвонок
+                    </a>
                 </div>
             </div>
-        </div>
-        
-        <div style="display: flex; gap: 12px; align-items: center;">
-            <div id="typing-indicator" style="font-size: 12px; opacity: 0.7; display: none;"></div>
-            <a href="{{ url_for('video_call', chat_id=chat_room.id) }}" class="btn btn-secondary" 
-               style="background: rgba(255,255,255,0.2); border-color: rgba(255,255,255,0.3); color: white; padding: 10px 16px;">
-               📞 Звонок
-            </a>
-        </div>
-    </div>
 
-    <!-- Messages -->
-    <div class="chat-messages" id="messages-container">
-        {% for message in messages %}
-            {% if message.message_type == 'voice' %}
-            <!-- Voice Message -->
-            <div class="message {% if message.author.id == current_user.id %}own{% endif %}" data-message-id="{{ message.id }}">
-                <div class="voice-message">
+            <!-- Сообщения -->
+            <div class="messages-container" id="messagesContainer">
+                {% for message in messages %}
+                <div class="message {{ 'own' if message.user_id == current_user.id }}">
                     <div class="message-header">
-                        <span class="message-author">{{ message.author.username or message.author.email.split('@')[0] }}</span>
+                        <img src="{{ url_for('static', filename='avatars/' + message.author.avatar) }}" 
+                             alt="{{ message.author.username }}" class="message-avatar">
+                        <span class="message-sender">{{ message.author.username }}</span>
                         <span class="message-time">{{ message.timestamp.strftime('%H:%M') }}</span>
                     </div>
-                    <div class="voice-player">
-                        <button class="play-btn" onclick="playVoiceMessage('{{ message.file_path }}', this)">
-                            ▶️
-                        </button>
-                        <div class="voice-waveform">
-                            <div style="font-size: 14px; opacity: 0.9;">
-                                🎤 {{ message.duration }}s
-                            </div>
+                    <div class="message-content">
+                        {% if message.message_type == 'voice' %}
+                        <div class="voice-message">
+                            <button class="voice-play-btn">▶</button>
+                            <span>Голосовое сообщение ({{ message.duration }} сек.)</span>
+                            <audio src="{{ message.file_path }}" preload="none"></audio>
                         </div>
-                    </div>
-                </div>
-            </div>
-            {% elif message.message_type in ['file', 'image'] %}
-            <!-- File Message -->
-            <div class="message {% if message.author.id == current_user.id %}own{% endif %}" data-message-id="{{ message.id }}">
-                <div class="message-content">
-                    <div class="message-header">
-                        <span class="message-author">{{ message.author.username or message.author.email.split('@')[0] }}</span>
-                        <span class="message-time">{{ message.timestamp.strftime('%H:%M') }}</span>
-                    </div>
-                    <div class="file-message">
-                        <div style="display: flex; align-items: center; gap: 12px; padding: 12px; background: var(--bg-secondary); border-radius: 12px;">
-                            <span style="font-size: 24px;">📎</span>
-                            <div style="flex: 1;">
-                                <div style="font-weight: 600; word-break: break-all;">{{ message.file_name }}</div>
-                                <div style="font-size: 12px; color: var(--text-secondary);">
-                                    {{ (message.file_size / 1024 / 1024) | round(2) }} MB
-                                </div>
-                            </div>
-                            <a href="{{ message.file_path }}" download class="btn btn-primary" style="padding: 8px 16px; font-size: 14px;">
-                                Скачать
-                            </a>
+                        {% elif message.message_type == 'file' %}
+                        <div class="message-file">
+                            📎 <a href="{{ message.file_path }}" target="_blank">{{ message.file_name }}</a>
+                            <small>({{ (message.file_size / 1024 / 1024)|round(2) }} MB)</small>
                         </div>
-                    </div>
-                </div>
-            </div>
-            {% else %}
-            <!-- Text Message -->
-            <div class="message {% if message.author.id == current_user.id %}own{% endif %}" data-message-id="{{ message.id }}">
-                <div class="message-content">
-                    <div class="message-header">
-                        <span class="message-author">{{ message.author.username or message.author.email.split('@')[0] }}</span>
-                        <span class="message-time">{{ message.timestamp.strftime('%H:%M') }}</span>
-                    </div>
-                    <div class="message-text">
+                        {% else %}
                         {{ message.content }}
+                        {% endif %}
                     </div>
                 </div>
+                {% endfor %}
+                <div id="typingIndicator" class="typing-indicator" style="display: none;"></div>
             </div>
-            {% endif %}
-        {% endfor %}
-    </div>
 
-    <!-- Chat Input -->
-    <div class="chat-input-wrapper">
-        <!-- Voice Recorder -->
-        <div id="voice-recorder" style="display: none; background: var(--gradient); color: white; padding: 16px; border-radius: 16px; margin-bottom: 12px;">
-            <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px;">
-                <div style="display: flex; align-items: center; gap: 12px;">
-                    <div style="width: 12px; height: 12px; background: white; border-radius: 50%; animation: pulse 1s infinite;"></div>
-                    <span>Запись...</span>
-                    <span id="recording-timer" style="font-weight: 600;">0:00</span>
+            <!-- Блок ввода сообщения -->
+            <div class="input-container">
+                {% if not can_send_messages %}
+                <div class="permission-warning">
+                    🔒 У вас нет прав для отправки сообщений в этот чат
                 </div>
-                <div style="display: flex; gap: 8px;">
-                    <button class="btn btn-secondary" onclick="stopRecording()" style="background: rgba(255,255,255,0.2); border-color: rgba(255,255,255,0.3); padding: 8px 12px; font-size: 14px;">
-                        ⏹️ Остановить
-                    </button>
-                    <button class="btn btn-secondary" onclick="cancelRecording()" style="background: rgba(255,255,255,0.2); border-color: rgba(255,255,255,0.3); padding: 8px 12px; font-size: 14px;">
-                        ❌ Отмена
-                    </button>
+                {% else %}
+                <textarea class="message-input" id="messageInput" placeholder="Введите сообщение..." 
+                         rows="1" oninput="autoResize(this)"></textarea>
+                
+                <div class="input-actions">
+                    <button class="action-btn" onclick="toggleVoiceRecording()">🎤</button>
+                    <button class="action-btn" onclick="openFilePicker()">📎</button>
+                    <button class="send-btn" id="sendBtn" onclick="sendMessage()" disabled>➤</button>
                 </div>
+
+                <input type="file" id="fileInput" style="display: none;" onchange="handleFileSelect(this)">
+                {% endif %}
             </div>
         </div>
-
-        <!-- Text Input -->
-        <div id="text-input" style="display: flex; gap: 8px; align-items: center; padding: 0 16px 16px;">
-            <button class="btn btn-secondary" onclick="toggleVoiceRecorder()" title="Голосовое сообщение" style="padding: 12px; min-width: 44px;">
-                🎤
-            </button>
-            
-            <input type="text" id="message-input" class="form-input" placeholder="Напишите сообщение..." 
-                   style="flex: 1; margin: 0; min-height: 44px;"
-                   onkeypress="handleKeyPress(event)">
-            
-            <button class="btn btn-primary" onclick="sendMessage()" style="padding: 12px 20px; min-width: 44px;">
-                ➤
-            </button>
-            
-            <button class="btn btn-secondary" onclick="document.getElementById('file-input').click()" title="Прикрепить файл" style="padding: 12px; min-width: 44px;">
-                📎
-            </button>
-        </div>
-        
-        <input type="file" id="file-input" style="display: none;" onchange="handleFileUpload(this.files[0])" accept="*/*">
     </div>
-</div>
 
-<script>
-// Socket.IO
-const socket = io();
-let currentRoom = {{ chat_room.id }};
-let typingTimeout;
+    <script src="https://cdn.socket.io/4.5.0/socket.io.min.js"></script>
+    <script>
+        const socket = io();
+        const chatRoomId = {{ chat_room.id }};
+        let isRecording = false;
+        let mediaRecorder;
+        let audioChunks = [];
 
-// Подключаемся к комнате
-socket.emit('join_room', { room: currentRoom });
+        // Подключаемся к комнате
+        socket.emit('join_room', { room: chatRoomId });
 
-// Получение новых сообщений
-socket.on('new_message', function(data) {
-    addMessageToChat(data);
-    scrollToBottom();
-});
-
-// Индикатор печати
-socket.on('user_typing', function(data) {
-    showTypingIndicator(data.user, data.typing);
-});
-
-// Ошибки
-socket.on('error', function(data) {
-    showNotification('Ошибка', data.message, 'error');
-});
-
-// Отправка сообщения
-function sendMessage() {
-    const input = document.getElementById('message-input');
-    const message = input.value.trim();
-    
-    if (message) {
-        socket.emit('send_message', {
-            room: currentRoom,
-            message: message,
-            type: 'text'
+        // Обработчики сообщений
+        socket.on('new_message', function(data) {
+            addMessageToChat(data);
+            scrollToBottom();
         });
-        input.value = '';
-        
-        // Сбрасываем индикатор печати
-        socket.emit('typing', {
-            room: currentRoom,
-            typing: false
+
+        socket.on('user_joined', function(data) {
+            addSystemMessage(`${data.user} присоединился к чату`);
         });
-    }
-}
 
-// Горячие клавиши
-function handleKeyPress(event) {
-    if (event.key === 'Enter' && !event.shiftKey) {
-        event.preventDefault();
-        sendMessage();
-        return;
-    }
-    
-    // Индикатор печати
-    clearTimeout(typingTimeout);
-    socket.emit('typing', {
-        room: currentRoom,
-        typing: true
-    });
-    
-    typingTimeout = setTimeout(() => {
-        socket.emit('typing', {
-            room: currentRoom,
-            typing: false
+        socket.on('user_left', function(data) {
+            addSystemMessage(`${data.user} покинул чат`);
         });
-    }, 1000);
-}
 
-// Голосовые сообщения
-let mediaRecorder;
-let audioChunks = [];
-let recordingStartTime;
-let recordingTimer;
+        socket.on('user_typing', function(data) {
+            showTypingIndicator(data.user, data.typing);
+        });
 
-async function toggleVoiceRecorder() {
-    const voiceRecorder = document.getElementById('voice-recorder');
-    const textInput = document.getElementById('text-input');
-    
-    if (voiceRecorder.style.display === 'none') {
-        try {
-            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-            mediaRecorder = new MediaRecorder(stream);
-            audioChunks = [];
-            
-            mediaRecorder.ondataavailable = (event) => {
-                audioChunks.push(event.data);
-            };
-            
-            mediaRecorder.onstop = () => {
-                const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
-                sendVoiceMessage(audioBlob);
-                stream.getTracks().forEach(track => track.stop());
-            };
-            
-            mediaRecorder.start();
-            startRecordingTimer();
-            
-            voiceRecorder.style.display = 'block';
-            textInput.style.display = 'none';
-            
-        } catch (error) {
-            console.error('Error accessing microphone:', error);
-            showNotification('Ошибка', 'Не удалось получить доступ к микрофону', 'error');
+        socket.on('error', function(data) {
+            alert('Ошибка: ' + data.message);
+        });
+
+        // Функции чата
+        function autoResize(textarea) {
+            textarea.style.height = 'auto';
+            textarea.style.height = Math.min(textarea.scrollHeight, 120) + 'px';
+            updateSendButton();
         }
-    } else {
-        stopRecording();
-    }
-}
 
-function stopRecording() {
-    if (mediaRecorder && mediaRecorder.state === 'recording') {
-        mediaRecorder.stop();
-        resetRecorder();
-    }
-}
+        function updateSendButton() {
+            const input = document.getElementById('messageInput');
+            const sendBtn = document.getElementById('sendBtn');
+            sendBtn.disabled = input.value.trim() === '';
+        }
 
-function cancelRecording() {
-    if (mediaRecorder && mediaRecorder.state === 'recording') {
-        mediaRecorder.stop();
-        audioChunks = [];
-        resetRecorder();
-    }
-}
+        function sendMessage() {
+            const input = document.getElementById('messageInput');
+            const message = input.value.trim();
+            
+            if (message) {
+                socket.emit('send_message', {
+                    room: chatRoomId,
+                    message: message,
+                    type: 'text'
+                });
+                
+                input.value = '';
+                autoResize(input);
+                updateSendButton();
+            }
+        }
 
-function resetRecorder() {
-    const voiceRecorder = document.getElementById('voice-recorder');
-    const textInput = document.getElementById('text-input');
-    
-    voiceRecorder.style.display = 'none';
-    textInput.style.display = 'flex';
-    clearInterval(recordingTimer);
-}
-
-function startRecordingTimer() {
-    recordingStartTime = Date.now();
-    const timerElement = document.getElementById('recording-timer');
-    
-    recordingTimer = setInterval(() => {
-        const elapsed = Math.floor((Date.now() - recordingStartTime) / 1000);
-        const minutes = Math.floor(elapsed / 60);
-        const seconds = elapsed % 60;
-        timerElement.textContent = `${minutes}:${seconds.toString().padStart(2, '0')}`;
-    }, 1000);
-}
-
-function sendVoiceMessage(audioBlob) {
-    const reader = new FileReader();
-    reader.onload = function() {
-        const duration = Math.floor((Date.now() - recordingStartTime) / 1000);
-        
-        socket.emit('voice_message', {
-            room: currentRoom,
-            audio_data: reader.result,
-            duration: duration
-        });
-    };
-    reader.readAsDataURL(audioBlob);
-}
-
-// Воспроизведение голосовых
-function playVoiceMessage(audioPath, button) {
-    const audio = new Audio(audioPath);
-    audio.play();
-    button.innerHTML = '⏸️';
-    button.disabled = true;
-    
-    audio.onended = function() {
-        button.innerHTML = '▶️';
-        button.disabled = false;
-    };
-    
-    audio.onerror = function() {
-        button.innerHTML = '▶️';
-        button.disabled = false;
-        showNotification('Ошибка', 'Не удалось воспроизвести голосовое сообщение', 'error');
-    };
-}
-
-// Загрузка файлов
-function handleFileUpload(file) {
-    if (!file) return;
-    
-    // Проверка размера файла (50MB)
-    if (file.size > 50 * 1024 * 1024) {
-        showNotification('Ошибка', 'Файл слишком большой (максимум 50MB)', 'error');
-        return;
-    }
-    
-    const formData = new FormData();
-    formData.append('file', file);
-    
-    showNotification('Загрузка', 'Файл загружается...', 'info');
-    
-    fetch('/upload_file', {
-        method: 'POST',
-        body: formData
-    })
-    .then(response => response.json())
-    .then(data => {
-        if (data.success) {
-            socket.emit('send_message', {
-                room: currentRoom,
-                message: `Файл: ${data.file_name}`,
-                type: 'file',
-                file_path: data.file_path,
-                file_name: data.file_name,
-                file_size: data.file_size
+        function addMessageToChat(data) {
+            const messagesContainer = document.getElementById('messagesContainer');
+            const messageDiv = document.createElement('div');
+            messageDiv.className = `message ${data.user_id === {{ current_user.id }} ? 'own' : ''}`;
+            
+            const messageTime = new Date(data.timestamp).toLocaleTimeString('ru-RU', { 
+                hour: '2-digit', 
+                minute: '2-digit' 
             });
-            showNotification('Успех', 'Файл загружен', 'success');
-        } else {
-            showNotification('Ошибка', 'Ошибка загрузки: ' + data.error, 'error');
+
+            let messageContent = '';
+            if (data.type === 'voice') {
+                messageContent = `
+                    <div class="voice-message">
+                        <button class="voice-play-btn" onclick="playVoiceMessage(this)">▶</button>
+                        <span>Голосовое сообщение (${data.duration} сек.)</span>
+                        <audio src="${data.file_path}" preload="none"></audio>
+                    </div>
+                `;
+            } else if (data.type === 'file') {
+                messageContent = `
+                    <div class="message-file">
+                        📎 <a href="${data.file_path}" target="_blank">${data.file_name}</a>
+                        <small>(${(data.file_size / 1024 / 1024).toFixed(2)} MB)</small>
+                    </div>
+                `;
+            } else {
+                messageContent = data.content;
+            }
+
+            messageDiv.innerHTML = `
+                <div class="message-header">
+                    <img src="{{ url_for('static', filename='avatars/') }}${data.user_avatar}" 
+                         alt="${data.user_email}" class="message-avatar">
+                    <span class="message-sender">${data.user_email}</span>
+                    <span class="message-time">${messageTime}</span>
+                </div>
+                <div class="message-content">
+                    ${messageContent}
+                </div>
+            `;
+            
+            messagesContainer.appendChild(messageDiv);
         }
-    })
-    .catch(error => {
-        console.error('Upload error:', error);
-        showNotification('Ошибка', 'Ошибка загрузки файла', 'error');
-    });
-}
 
-// Вспомогательные функции
-function addMessageToChat(data) {
-    const messagesContainer = document.getElementById('messages-container');
-    const messageElement = document.createElement('div');
-    
-    const userName = data.user_email.split('@')[0];
-    const isOwn = data.user_id === {{ current_user.id }};
-    const timestamp = new Date(data.timestamp).toLocaleTimeString('ru-RU', { 
-        hour: '2-digit', 
-        minute: '2-digit' 
-    });
-    
-    if (data.type === 'voice') {
-        messageElement.innerHTML = `
-            <div class="message ${isOwn ? 'own' : ''}" data-message-id="${data.id}">
-                <div class="voice-message">
-                    <div class="message-header">
-                        <span class="message-author">${userName}</span>
-                        <span class="message-time">${timestamp}</span>
-                    </div>
-                    <div class="voice-player">
-                        <button class="play-btn" onclick="playVoiceMessage('${data.file_path}', this)">
-                            ▶️
-                        </button>
-                        <div class="voice-waveform">
-                            <div style="font-size: 14px; opacity: 0.9;">
-                                🎤 ${data.duration}s
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        `;
-    } else if (data.type === 'file') {
-        const fileSize = (data.file_size / 1024 / 1024).toFixed(2);
-        messageElement.innerHTML = `
-            <div class="message ${isOwn ? 'own' : ''}" data-message-id="${data.id}">
-                <div class="message-content">
-                    <div class="message-header">
-                        <span class="message-author">${userName}</span>
-                        <span class="message-time">${timestamp}</span>
-                    </div>
-                    <div class="file-message">
-                        <div style="display: flex; align-items: center; gap: 12px; padding: 12px; background: var(--bg-secondary); border-radius: 12px;">
-                            <span style="font-size: 24px;">📎</span>
-                            <div style="flex: 1;">
-                                <div style="font-weight: 600; word-break: break-all;">${data.file_name}</div>
-                                <div style="font-size: 12px; color: var(--text-secondary);">
-                                    ${fileSize} MB
-                                </div>
-                            </div>
-                            <a href="${data.file_path}" download class="btn btn-primary" style="padding: 8px 16px; font-size: 14px;">
-                                Скачать
-                            </a>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        `;
-    } else {
-        messageElement.innerHTML = `
-            <div class="message ${isOwn ? 'own' : ''}" data-message-id="${data.id}">
-                <div class="message-content">
-                    <div class="message-header">
-                        <span class="message-author">${userName}</span>
-                        <span class="message-time">${timestamp}</span>
-                    </div>
-                    <div class="message-text">
-                        ${data.content}
-                    </div>
-                </div>
-            </div>
-        `;
-    }
-    
-    messagesContainer.appendChild(messageElement);
-}
+        function addSystemMessage(text) {
+            const messagesContainer = document.getElementById('messagesContainer');
+            const systemMsg = document.createElement('div');
+            systemMsg.className = 'message system-message';
+            systemMsg.style.cssText = 'text-align: center; color: #7f8c8d; font-style: italic; background: none; box-shadow: none;';
+            systemMsg.textContent = text;
+            messagesContainer.appendChild(systemMsg);
+            scrollToBottom();
+        }
 
-function scrollToBottom() {
-    const messagesContainer = document.getElementById('messages-container');
-    messagesContainer.scrollTop = messagesContainer.scrollHeight;
-}
+        function showTypingIndicator(user, isTyping) {
+            const indicator = document.getElementById('typingIndicator');
+            if (isTyping) {
+                indicator.textContent = `${user} печатает...`;
+                indicator.style.display = 'block';
+            } else {
+                indicator.style.display = 'none';
+            }
+            scrollToBottom();
+        }
 
-function showTypingIndicator(user, typing) {
-    const indicator = document.getElementById('typing-indicator');
-    const userName = user.split('@')[0];
-    
-    if (typing) {
-        indicator.textContent = `${userName} печатает...`;
-        indicator.style.display = 'block';
-    } else {
-        indicator.style.display = 'none';
-    }
-}
+        function scrollToBottom() {
+            const container = document.getElementById('messagesContainer');
+            container.scrollTop = container.scrollHeight;
+        }
 
-// Инициализация
-document.addEventListener('DOMContentLoaded', function() {
-    scrollToBottom();
-    
-    // Автофокус на поле ввода
-    const messageInput = document.getElementById('message-input');
-    if (messageInput) {
-        setTimeout(() => {
-            messageInput.focus();
-        }, 100);
-    }
-    
-    // Обработка изменения размера окна
-    window.addEventListener('resize', scrollToBottom);
-});
+        // Обработка ввода сообщения
+        document.getElementById('messageInput').addEventListener('input', function() {
+            socket.emit('typing', {
+                room: chatRoomId,
+                typing: this.value.length > 0
+            });
+        });
 
-// Обработка видимости страницы
-document.addEventListener('visibilitychange', function() {
-    if (!document.hidden) {
-        scrollToBottom();
-    }
-});
-</script>
+        document.getElementById('messageInput').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                sendMessage();
+            }
+        });
 
-<style>
-@keyframes pulse {
-    0% { opacity: 1; }
-    50% { opacity: 0.5; }
-    100% { opacity: 1; }
-}
+        // Голосовые сообщения
+        async function toggleVoiceRecording() {
+            if (!isRecording) {
+                try {
+                    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                    mediaRecorder = new MediaRecorder(stream);
+                    audioChunks = [];
 
-.chat-input-wrapper {
-    background: var(--bg-card);
-    border-top: 1px solid var(--border);
-}
+                    mediaRecorder.ondataavailable = (event) => {
+                        audioChunks.push(event.data);
+                    };
 
-.file-message {
-    margin-top: 8px;
-}
+                    mediaRecorder.onstop = async () => {
+                        const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
+                        const audioUrl = URL.createObjectURL(audioBlob);
+                        
+                        // Конвертируем в base64 для отправки
+                        const reader = new FileReader();
+                        reader.readAsDataURL(audioBlob);
+                        reader.onloadend = function() {
+                            const base64Audio = reader.result;
+                            const duration = Math.round(audioBlob.size / 16000); // Примерная длительность
+                            
+                            socket.emit('voice_message', {
+                                room: chatRoomId,
+                                audio_data: base64Audio,
+                                duration: duration
+                            });
+                        };
 
-/* Улучшения для мобильных */
-@media (max-width: 768px) {
-    .chat-header {
-        padding: 16px 20px;
-    }
-    
-    .chat-header h1 {
-        font-size: 18px;
-    }
-    
-    .chat-messages {
-        padding: 16px;
-    }
-    
-    #text-input {
-        padding: 0 12px 12px;
-        gap: 6px;
-    }
-    
-    .btn {
-        padding: 10px;
-    }
-    
-    .form-input {
-        padding: 12px 14px;
-    }
-}
+                        stream.getTracks().forEach(track => track.stop());
+                    };
 
-@media (max-width: 480px) {
-    .voice-recorder {
-        padding: 12px;
-    }
-    
-    .voice-recorder > div {
-        flex-direction: column;
-        align-items: stretch;
-        gap: 8px;
-    }
-    
-    .voice-recorder-buttons {
-        justify-content: center;
-    }
-}
+                    mediaRecorder.start();
+                    isRecording = true;
+                    document.querySelector('.action-btn').textContent = '⏹️';
+                    
+                } catch (error) {
+                    console.error('Ошибка доступа к микрофону:', error);
+                    alert('Не удалось получить доступ к микрофону');
+                }
+            } else {
+                mediaRecorder.stop();
+                isRecording = false;
+                document.querySelector('.action-btn').textContent = '🎤';
+            }
+        }
 
-/* Улучшения доступности */
-.btn:focus-visible,
-.form-input:focus-visible {
-    outline: 2px solid var(--primary);
-    outline-offset: 2px;
-}
+        function playVoiceMessage(button) {
+            const audio = button.parentElement.querySelector('audio');
+            if (audio.paused) {
+                audio.play();
+                button.textContent = '⏸️';
+                audio.onended = function() {
+                    button.textContent = '▶';
+                };
+            } else {
+                audio.pause();
+                button.textContent = '▶';
+            }
+        }
 
-/* Улучшения производительности */
-.message {
-    content-visibility: auto;
-}
-</style>
-{% endblock %}
+        // Файлы
+        function openFilePicker() {
+            document.getElementById('fileInput').click();
+        }
+
+        function handleFileSelect(input) {
+            const file = input.files[0];
+            if (file) {
+                const formData = new FormData();
+                formData.append('file', file);
+
+                fetch('/upload_file', {
+                    method: 'POST',
+                    body: formData
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        socket.emit('send_message', {
+                            room: chatRoomId,
+                            message: 'Файл: ' + data.file_name,
+                            type: 'file',
+                            file_path: data.file_path,
+                            file_name: data.file_name,
+                            file_size: data.file_size
+                        });
+                    } else {
+                        alert('Ошибка загрузки файла: ' + data.error);
+                    }
+                })
+                .catch(error => {
+                    console.error('Ошибка:', error);
+                    alert('Ошибка загрузки файла');
+                });
+            }
+        }
+
+        // Прокрутка вниз при загрузке
+        document.addEventListener('DOMContentLoaded', function() {
+            scrollToBottom();
+            document.getElementById('messageInput').focus();
+        });
+    </script>
+</body>
+</html>
