@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="auth-wrapper">
+    <div class="auth-container">
+        <div class="auth-header">
+            <h1 class="auth-title">🚀 Присоединяйтесь!</h1>
+            <p class="auth-subtitle">Создайте свой аккаунт FreedomChat</p>
+        </div>
+
+        <form method="POST" class="auth-form">
+            <div class="form-group">
+                <label class="form-label">📧 Email адрес</label>
+                <input type="email" name="email" class="form-input" placeholder="your@email.com" required>
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">🔑 Пароль</label>
+                <input type="password" name="password" class="form-input" placeholder="Придумайте надежный пароль" required>
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">✅ Подтвердите пароль</label>
+                <input type="password" name="confirm_password" class="form-input" placeholder="Повторите ваш пароль" required>
+            </div>
+
+            <button type="submit" class="btn btn-primary" style="width: 100%;">
+                🎯 Создать аккаунт
+            </button>
+        </form>
+
+        <div class="auth-footer" style="text-align: center; margin-top: 32px;">
+            <p style="color: var(--text-secondary); margin-bottom: 16px;">
+                Уже есть аккаунт?
+            </p>
+            <a href="{{ url_for('login') }}" class="btn btn-secondary" style="width: 100%;">
+                🔐 Войти в аккаунт
+            </a>
+        </div>
+
+        <div style="text-align: center; margin-top: 24px; padding-top: 24px; border-top: 1px solid var(--border);">
+            <div style="display: grid; gap: 8px; font-size: 14px; color: var(--text-secondary);">
+                <div>✨ Мгновенные сообщения</div>
+                <div>🎤 Голосовые сообщения</div>
+                <div>🔐 Приватные чаты</div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

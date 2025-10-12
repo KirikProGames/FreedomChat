@@ -1,0 +1,621 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="call-container">
+    <!-- Call Header -->
+    <div class="call-header">
+        <div style="display: flex; align-items: center; gap: 16px;">
+            <a href="{{ url_for('chat', chat_id=chat_room.id) }}" class="btn btn-secondary" 
+               style="background: rgba(255,255,255,0.2); border-color: rgba(255,255,255,0.3); color: white;">
+                ← Назад
+            </a>
+            <div>
+                <h1 style="font-size: 20px; font-weight: 700; margin-bottom: 4px;">
+                    📞 Звонок в {{ chat_room.name }}
+                </h1>
+                <div style="font-size: 14px; opacity: 0.9;" id="call-status">
+                    Подключение...
+                </div>
+            </div>
+        </div>
+        
+        <div style="display: flex; gap: 12px;">
+            <div class="call-timer" id="call-timer">00:00</div>
+        </div>
+    </div>
+
+    <!-- Video Area -->
+    <div class="video-container">
+        <!-- Remote Video -->
+        <div class="video-wrapper">
+            <video id="remoteVideo" autoplay playsinline 
+                   style="width: 100%; height: 100%; border-radius: 16px; background: var(--bg-secondary);"></video>
+            <div class="video-overlay" id="remote-overlay">
+                <div class="user-info">
+                    <div class="user-avatar">👤</div>
+                    <div class="user-name">Участник</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Local Video -->
+        <div class="local-video-wrapper">
+            <video id="localVideo" autoplay playsinline muted
+                   style="width: 100%; height: 100%; border-radius: 12px; background: var(--bg-secondary);"></video>
+            <div class="video-overlay">
+                <div class="user-info">
+                    <div class="user-avatar">👤</div>
+                    <div class="user-name">Вы</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Call Controls -->
+    <div class="call-controls">
+        <button class="control-btn mic-btn" onclick="toggleMic()" title="Микрофон">
+            🎤
+        </button>
+        
+        <button class="control-btn camera-btn" onclick="toggleCamera()" title="Камера">
+            📹
+        </button>
+        
+        <button class="control-btn screen-btn" onclick="toggleScreenShare()" title="Поделиться экраном">
+            🖥️
+        </button>
+        
+        <button class="control-btn end-call-btn" onclick="endCall()" title="Завершить звонок">
+            📞
+        </button>
+        
+        <button class="control-btn chat-btn" onclick="toggleChat()" title="Чат">
+            💬
+        </button>
+    </div>
+
+    <!-- Participants -->
+    <div class="participants-sidebar" id="participants-sidebar">
+        <h3 style="margin-bottom: 16px;">Участники (1)</h3>
+        <div class="participants-list">
+            <div class="participant">
+                <div class="participant-avatar">👤</div>
+                <div class="participant-info">
+                    <div class="participant-name">{{ current_user.username or current_user.email }}</div>
+                    <div class="participant-status">Вы</div>
+                </div>
+                <div class="participant-indicator online"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Chat Sidebar -->
+    <div class="chat-sidebar" id="chat-sidebar" style="display: none;">
+        <div class="chat-sidebar-header">
+            <h3>Чат звонка</h3>
+            <button class="close-chat" onclick="toggleChat()">×</button>
+        </div>
+        <div class="call-chat-messages" id="call-chat-messages">
+            <!-- Сообщения чата -->
+        </div>
+        <div class="call-chat-input">
+            <input type="text" placeholder="Сообщение..." id="call-chat-input">
+            <button onclick="sendCallMessage()">➤</button>
+        </div>
+    </div>
+</div>
+
+<!-- Incoming Call Modal -->
+<div class="call-modal" id="incoming-call-modal" style="display: none;">
+    <div class="call-modal-content">
+        <div class="call-modal-icon">📞</div>
+        <h2>Входящий звонок</h2>
+        <p id="caller-name">User</p>
+        <div class="call-modal-buttons">
+            <button class="btn btn-primary" onclick="answerCall()">📞 Ответить</button>
+            <button class="btn btn-secondary" onclick="rejectCall()">❌ Отклонить</button>
+        </div>
+    </div>
+</div>
+
+<style>
+.call-container {
+    height: 100vh;
+    background: var(--bg-primary);
+    display: flex;
+    flex-direction: column;
+}
+
+.call-header {
+    background: var(--gradient);
+    color: white;
+    padding: 20px 32px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.call-timer {
+    background: rgba(255,255,255,0.2);
+    padding: 8px 16px;
+    border-radius: 20px;
+    font-weight: 600;
+    font-size: 14px;
+}
+
+.video-container {
+    flex: 1;
+    position: relative;
+    background: var(--bg-secondary);
+    padding: 20px;
+}
+
+.video-wrapper {
+    width: 100%;
+    height: 100%;
+    position: relative;
+    border-radius: 16px;
+    overflow: hidden;
+}
+
+.local-video-wrapper {
+    position: absolute;
+    bottom: 20px;
+    right: 20px;
+    width: 300px;
+    height: 200px;
+    border: 3px solid var(--primary);
+    border-radius: 12px;
+    overflow: hidden;
+    background: var(--bg-card);
+}
+
+.video-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0,0,0,0.5);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+}
+
+.user-info {
+    text-align: center;
+}
+
+.user-avatar {
+    font-size: 48px;
+    margin-bottom: 8px;
+}
+
+.user-name {
+    font-weight: 600;
+}
+
+.call-controls {
+    background: var(--bg-card);
+    padding: 24px;
+    display: flex;
+    justify-content: center;
+    gap: 16px;
+    border-top: 1px solid var(--border);
+}
+
+.control-btn {
+    width: 60px;
+    height: 60px;
+    border-radius: 50%;
+    border: none;
+    font-size: 24px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.control-btn:hover {
+    transform: scale(1.1);
+}
+
+.mic-btn, .camera-btn, .screen-btn, .chat-btn {
+    background: var(--bg-secondary);
+    color: var(--text-primary);
+}
+
+.end-call-btn {
+    background: #ef4444;
+    color: white;
+}
+
+.control-btn.active {
+    background: var(--primary);
+    color: white;
+}
+
+.participants-sidebar {
+    position: absolute;
+    top: 20px;
+    right: 20px;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 20px;
+    width: 280px;
+    box-shadow: var(--shadow);
+}
+
+.participants-list {
+    space-y: 12px;
+}
+
+.participant {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px;
+    background: var(--bg-secondary);
+    border-radius: 12px;
+}
+
+.participant-avatar {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    background: var(--gradient);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    font-weight: bold;
+}
+
+.participant-info {
+    flex: 1;
+}
+
+.participant-name {
+    font-weight: 600;
+    font-size: 14px;
+}
+
+.participant-status {
+    font-size: 12px;
+    color: var(--text-secondary);
+}
+
+.participant-indicator {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+}
+
+.participant-indicator.online {
+    background: var(--success);
+}
+
+.participant-indicator.offline {
+    background: var(--secondary);
+}
+
+.chat-sidebar {
+    position: absolute;
+    top: 20px;
+    right: 320px;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    width: 300px;
+    height: 400px;
+    display: flex;
+    flex-direction: column;
+    box-shadow: var(--shadow);
+}
+
+.chat-sidebar-header {
+    padding: 16px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.close-chat {
+    background: none;
+    border: none;
+    font-size: 20px;
+    cursor: pointer;
+    color: var(--text-secondary);
+}
+
+.call-chat-messages {
+    flex: 1;
+    padding: 16px;
+    overflow-y: auto;
+}
+
+.call-chat-input {
+    padding: 16px;
+    border-top: 1px solid var(--border);
+    display: flex;
+    gap: 8px;
+}
+
+.call-chat-input input {
+    flex: 1;
+    padding: 8px 12px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--bg-primary);
+    color: var(--text-primary);
+}
+
+.call-modal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0,0,0,0.8);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+}
+
+.call-modal-content {
+    background: var(--bg-card);
+    padding: 40px;
+    border-radius: 24px;
+    text-align: center;
+    box-shadow: var(--shadow);
+    max-width: 400px;
+    width: 90%;
+}
+
+.call-modal-icon {
+    font-size: 64px;
+    margin-bottom: 20px;
+}
+
+.call-modal-buttons {
+    display: flex;
+    gap: 12px;
+    margin-top: 24px;
+}
+
+.call-modal-buttons .btn {
+    flex: 1;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+    .local-video-wrapper {
+        width: 150px;
+        height: 100px;
+    }
+    
+    .participants-sidebar {
+        display: none;
+    }
+    
+    .control-btn {
+        width: 50px;
+        height: 50px;
+        font-size: 20px;
+    }
+}
+</style>
+
+<script>
+// WebRTC звонки
+let localStream;
+let remoteStream;
+let peerConnection;
+let callStartTime;
+let callTimer;
+let currentCallId;
+
+const configuration = {
+    iceServers: [
+        { urls: 'stun:stun.l.google.com:19302' }
+    ]
+};
+
+// Инициализация звонка
+async function startCall() {
+    try {
+        localStream = await navigator.mediaDevices.getUserMedia({ 
+            video: true, 
+            audio: true 
+        });
+        
+        document.getElementById('localVideo').srcObject = localStream;
+        
+        // Создаем PeerConnection
+        peerConnection = new RTCPeerConnection(configuration);
+        
+        // Добавляем локальный поток
+        localStream.getTracks().forEach(track => {
+            peerConnection.addTrack(track, localStream);
+        });
+        
+        // Получаем удаленный поток
+        peerConnection.ontrack = (event) => {
+            remoteStream = event.streams[0];
+            document.getElementById('remoteVideo').srcObject = remoteStream;
+            document.getElementById('remote-overlay').style.display = 'none';
+        };
+        
+        // ICE кандидаты
+        peerConnection.onicecandidate = (event) => {
+            if (event.candidate) {
+                socket.emit('webrtc_ice_candidate', {
+                    call_room: `call_${currentCallId}`,
+                    candidate: event.candidate
+                });
+            }
+        };
+        
+        updateCallStatus('Звонок активен');
+        startCallTimer();
+        
+    } catch (error) {
+        console.error('Error starting call:', error);
+        alert('Ошибка доступа к камере/микрофону');
+    }
+}
+
+// Ответ на звонок
+async function answerCall() {
+    document.getElementById('incoming-call-modal').style.display = 'none';
+    await startCall();
+    
+    // Отправляем ответ
+    socket.emit('answer_call', { call_id: currentCallId });
+}
+
+// Завершение звонка
+function endCall() {
+    if (localStream) {
+        localStream.getTracks().forEach(track => track.stop());
+    }
+    
+    if (peerConnection) {
+        peerConnection.close();
+    }
+    
+    socket.emit('end_call', { call_id: currentCallId });
+    
+    // Возвращаем в чат
+    window.location.href = "{{ url_for('chat', chat_id=chat_room.id) }}";
+}
+
+// Управление медиа
+function toggleMic() {
+    if (localStream) {
+        const audioTrack = localStream.getAudioTracks()[0];
+        audioTrack.enabled = !audioTrack.enabled;
+        document.querySelector('.mic-btn').classList.toggle('active', !audioTrack.enabled);
+    }
+}
+
+function toggleCamera() {
+    if (localStream) {
+        const videoTrack = localStream.getVideoTracks()[0];
+        videoTrack.enabled = !videoTrack.enabled;
+        document.querySelector('.camera-btn').classList.toggle('active', !videoTrack.enabled);
+    }
+}
+
+async function toggleScreenShare() {
+    try {
+        if (!localStream.getVideoTracks()[0].enabled) {
+            const screenStream = await navigator.mediaDevices.getDisplayMedia({
+                video: true,
+                audio: true
+            });
+            
+            const videoTrack = screenStream.getVideoTracks()[0];
+            const sender = peerConnection.getSenders().find(s => 
+                s.track && s.track.kind === 'video'
+            );
+            
+            if (sender) {
+                await sender.replaceTrack(videoTrack);
+            }
+            
+            document.querySelector('.screen-btn').classList.add('active');
+            
+            videoTrack.onended = () => {
+                toggleScreenShare();
+            };
+        }
+    } catch (error) {
+        console.error('Error sharing screen:', error);
+    }
+}
+
+function toggleChat() {
+    const chatSidebar = document.getElementById('chat-sidebar');
+    chatSidebar.style.display = chatSidebar.style.display === 'none' ? 'block' : 'none';
+}
+
+function sendCallMessage() {
+    const input = document.getElementById('call-chat-input');
+    const message = input.value.trim();
+    
+    if (message) {
+        // Отправка сообщения в чат звонка
+        input.value = '';
+    }
+}
+
+function updateCallStatus(status) {
+    document.getElementById('call-status').textContent = status;
+}
+
+function startCallTimer() {
+    callStartTime = Date.now();
+    callTimer = setInterval(() => {
+        const elapsed = Math.floor((Date.now() - callStartTime) / 1000);
+        const minutes = Math.floor(elapsed / 60);
+        const seconds = elapsed % 60;
+        document.getElementById('call-timer').textContent = 
+            `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+    }, 1000);
+}
+
+// Socket события для звонков
+socket.on('incoming_call', (data) => {
+    currentCallId = data.call_id;
+    document.getElementById('caller-name').textContent = data.caller_name;
+    document.getElementById('incoming-call-modal').style.display = 'flex';
+});
+
+socket.on('call_accepted', (data) => {
+    currentCallId = data.call_id;
+    startCall();
+});
+
+socket.on('call_rejected', () => {
+    alert('Звонок отклонен');
+    window.location.href = "{{ url_for('chat', chat_id=chat_room.id) }}";
+});
+
+socket.on('call_ended', () => {
+    alert('Звонок завершен');
+    window.location.href = "{{ url_for('chat', chat_id=chat_room.id) }}";
+});
+
+// WebRTC события
+socket.on('webrtc_offer', async (data) => {
+    await peerConnection.setRemoteDescription(data.offer);
+    const answer = await peerConnection.createAnswer();
+    await peerConnection.setLocalDescription(answer);
+    
+    socket.emit('webrtc_answer', {
+        call_room: `call_${currentCallId}`,
+        answer: answer
+    });
+});
+
+socket.on('webrtc_answer', async (data) => {
+    await peerConnection.setRemoteDescription(data.answer);
+});
+
+socket.on('webrtc_ice_candidate', async (data) => {
+    await peerConnection.addIceCandidate(data.candidate);
+});
+
+// Инициализация
+document.addEventListener('DOMContentLoaded', function() {
+    // Автоматически начинаем звонок если мы его создали
+    startCall();
+});
+</script>
+{% endblock %}

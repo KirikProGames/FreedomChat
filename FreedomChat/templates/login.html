@@ -1,0 +1,49 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="auth-wrapper">
+    <div class="auth-container">
+        <div class="auth-header">
+            <h1 class="auth-title">🎉 С возвращением!</h1>
+            <p class="auth-subtitle">Войдите в свой аккаунт FreedomChat</p>
+        </div>
+
+        <form method="POST" class="auth-form">
+            <div class="form-group">
+                <label class="form-label">📧 Email адрес</label>
+                <input type="email" name="email" class="form-input" placeholder="your@email.com" required>
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">🔑 Пароль</label>
+                <input type="password" name="password" class="form-input" placeholder="Введите ваш пароль" required>
+            </div>
+
+            <button type="submit" class="btn btn-primary" style="width: 100%;">
+                🚀 Войти в аккаунт
+            </button>
+        </form>
+
+        <div class="auth-footer" style="text-align: center; margin-top: 32px;">
+            <p style="color: var(--text-secondary); margin-bottom: 16px;">
+                Ещё нет аккаунта?
+            </p>
+            <a href="{{ url_for('register') }}" class="btn btn-secondary" style="width: 100%;">
+                📝 Создать новый аккаунт
+            </a>
+        </div>
+
+        <div style="text-align: center; margin-top: 24px; padding-top: 24px; border-top: 1px solid var(--border);">
+            <p style="color: var(--text-secondary); font-size: 14px;">
+                🔒 Ваши данные в безопасности
+            </p>
+        </div>
+    </div>
+</div>
+
+<style>
+.auth-form {
+    space-y: 24px;
+}
+</style>
+{% endblock %}

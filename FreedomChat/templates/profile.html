@@ -1,0 +1,323 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="dashboard-container">
+    <!-- Header -->
+    <div class="dashboard-header">
+        <div style="position: relative; z-index: 2;">
+            <h1 class="dashboard-title">👤 Мой профиль</h1>
+            <p class="dashboard-subtitle">Настройте вашу учетную запись</p>
+        </div>
+        <a href="{{ url_for('dashboard') }}" class="btn btn-secondary" style="position: relative; z-index: 2; background: rgba(255,255,255,0.2); border-color: rgba(255,255,255,0.3); color: white;">
+            ← Назад
+        </a>
+    </div>
+
+    <!-- Content -->
+    <div class="dashboard-content">
+        <!-- Profile Info Card -->
+        <div class="feature-card" style="grid-column: 1 / -1;">
+            <div class="feature-icon">👤</div>
+            <h3 class="feature-title">Основная информация</h3>
+            
+            <form method="POST" enctype="multipart/form-data" class="profile-form">
+                <!-- Avatar -->
+                <div class="form-group" style="text-align: center;">
+                    <div class="avatar-upload">
+                        <div class="avatar-preview">
+                            <img src="{{ url_for('static', filename='avatars/' + current_user.avatar) }}" 
+                                 alt="Avatar" class="avatar-image"
+                                 onerror="this.src='data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTIwIiBoZWlnaHQ9IjEyMCIgdmlld0JveD0iMCAwIDEyMCAxMjAiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CjxyZWN0IHdpZHRoPSIxMjAiIGhlaWdodD0iMTIwIiByeD0iMjAiIGZpbGw9InVybCgjZ3JhZGllbnQwX2xpbmVhcl8xXzEpIi8+CjxwYXRoIGQ9Ik03MCA1MEM3MCA1Ni4wNzUgNjUuMDc1IDYxIDU5IDYxQzUyLjkyNSA2MSA0OCA1Ni4wNzUgNDggNTBDNDggNDMuOTI1IDUyLjkyNSAzOSA1OSAzOUM2NS4wNzUgMzkgNzAgNDMuOTI1IDcwIDUwWiIgZmlsbD0id2hpdGUiLz4KPHBhdGggZD0iTTU5IDY0QzQyLjQgNjQgMjkgNzcuNCAyOSA5NFY5N0w4OSA5N1Y5NEM4OSA3Ny40IDc1LjYgNjQgNTkgNjRaIiBmaWxsPSJ3aGl0ZSIvPgo8ZGVmcz4KPGxpbmVhckdyYWRpZW50IGlkPSJncmFkaWVudDBfbGluZWFyXzFfMSIgeDE9IjYwIiB5MT0iMCIgeDI9IjYwIiB5Mj0iMTIwIiBncmFkaWVudFVuaXRzPSJ1c2VyU3BhY2VPblVzZSI+CjxzdG9wIHN0b3AtY29sb3I9IiM2MzY2ZjEiLz4KPHN0b3Agb2Zmc2V0PSIxIiBzdG9wLWNvbG9yPSIjOGI1Y2Y2Ii8+CjwvbGluZWFyR3JhZGllbnQ+CjwvZGVmcz4KPC9zdmc+'">
+                        </div>
+                        <label for="avatar-upload" class="avatar-upload-label">
+                            📷 Изменить фото
+                        </label>
+                        <input type="file" id="avatar-upload" name="avatar" accept="image/*" style="display: none;">
+                    </div>
+                </div>
+
+                <!-- Username -->
+                <div class="form-group">
+                    <label class="form-label">👤 Username</label>
+                    <input type="text" name="username" class="form-input" 
+                           value="{{ current_user.username or '' }}" 
+                           placeholder="Ваш уникальный username">
+                </div>
+
+                <!-- Email (readonly) -->
+                <div class="form-group">
+                    <label class="form-label">📧 Email</label>
+                    <input type="email" class="form-input" value="{{ current_user.email }}" readonly 
+                           style="background: var(--bg-secondary); cursor: not-allowed;">
+                    <div style="font-size: 12px; color: var(--text-secondary); margin-top: 5px;">
+                        Email нельзя изменить
+                    </div>
+                </div>
+
+                <!-- Status -->
+                <div class="form-group">
+                    <label class="form-label">💬 Статус</label>
+                    <input type="text" name="status" class="form-input" 
+                           value="{{ current_user.status or '' }}" 
+                           placeholder="Например: В сети, Не беспокоить...">
+                </div>
+
+                <!-- Bio -->
+                <div class="form-group">
+                    <label class="form-label">📝 О себе</label>
+                    <textarea name="bio" class="form-input" 
+                              placeholder="Расскажите о себе..." 
+                              style="height: 100px; resize: vertical;">{{ current_user.bio or '' }}</textarea>
+                </div>
+
+                <!-- Phone -->
+                <div class="form-group">
+                    <label class="form-label">📞 Телефон</label>
+                    <input type="tel" name="phone" class="form-input" 
+                           value="{{ current_user.phone or '' }}" 
+                           placeholder="+7 (XXX) XXX-XX-XX">
+                </div>
+
+                <button type="submit" class="btn btn-primary" style="width: 100%;">
+                    💾 Сохранить изменения
+                </button>
+            </form>
+        </div>
+
+        <!-- Stats Card -->
+        <div class="feature-card">
+            <div class="feature-icon">📊</div>
+            <h3 class="feature-title">Статистика</h3>
+            
+            <div class="stats-grid">
+                <div class="stat-item">
+                    <div class="stat-number">{{ current_user.chat_rooms|length }}</div>
+                    <div class="stat-label">Чатов</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-number">{{ current_user.messages|length }}</div>
+                    <div class="stat-label">Сообщений</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-number">
+                        {% if current_user.online %}Онлайн{% else %}Офлайн{% endif %}
+                    </div>
+                    <div class="stat-label">Статус</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-number">{{ current_user.created_at.strftime('%d.%m.%Y') }}</div>
+                    <div class="stat-label">Регистрация</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Account Settings -->
+        <div class="feature-card">
+            <div class="feature-icon">⚙️</div>
+            <h3 class="feature-title">Настройки аккаунта</h3>
+            
+            <div class="settings-list">
+                <div class="setting-item">
+                    <span>🔔 Уведомления</span>
+                    <label class="switch">
+                        <input type="checkbox" checked>
+                        <span class="slider"></span>
+                    </label>
+                </div>
+                
+                <div class="setting-item">
+                    <span>🌙 Темная тема</span>
+                    <label class="switch">
+                        <input type="checkbox" id="theme-toggle" onchange="toggleTheme()">
+                        <span class="slider"></span>
+                    </label>
+                </div>
+                
+                <div class="setting-item">
+                    <span>🔒 Приватность</span>
+                    <label class="switch">
+                        <input type="checkbox">
+                        <span class="slider"></span>
+                    </label>
+                </div>
+            </div>
+
+            <div style="margin-top: 24px; padding-top: 20px; border-top: 1px solid var(--border);">
+                <button class="btn btn-secondary" style="width: 100%; margin-bottom: 12px;">
+                    🔑 Сменить пароль
+                </button>
+                <button class="btn btn-secondary" style="width: 100%; background: var(--danger); border-color: var(--danger);">
+                    🗑️ Удалить аккаунт
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+.profile-form {
+    space-y: 20px;
+}
+
+.avatar-upload {
+    text-align: center;
+}
+
+.avatar-preview {
+    width: 120px;
+    height: 120px;
+    border-radius: 20px;
+    overflow: hidden;
+    margin: 0 auto 16px;
+    border: 4px solid var(--border);
+    position: relative;
+}
+
+.avatar-image {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.avatar-upload-label {
+    background: var(--gradient);
+    color: white;
+    padding: 10px 20px;
+    border-radius: 12px;
+    cursor: pointer;
+    font-weight: 600;
+    transition: all 0.3s ease;
+    display: inline-block;
+}
+
+.avatar-upload-label:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(99, 102, 241, 0.3);
+}
+
+.stats-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+    margin-top: 20px;
+}
+
+.stat-item {
+    background: var(--bg-secondary);
+    padding: 16px;
+    border-radius: 12px;
+    text-align: center;
+}
+
+.stat-number {
+    font-size: 24px;
+    font-weight: 700;
+    background: var(--gradient);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    margin-bottom: 4px;
+}
+
+.stat-label {
+    font-size: 12px;
+    color: var(--text-secondary);
+    font-weight: 600;
+}
+
+.settings-list {
+    space-y: 12px;
+}
+
+.setting-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px 0;
+    border-bottom: 1px solid var(--border);
+}
+
+.setting-item:last-child {
+    border-bottom: none;
+}
+
+/* Switch */
+.switch {
+    position: relative;
+    display: inline-block;
+    width: 50px;
+    height: 24px;
+}
+
+.switch input {
+    opacity: 0;
+    width: 0;
+    height: 0;
+}
+
+.slider {
+    position: absolute;
+    cursor: pointer;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: var(--border);
+    transition: .4s;
+    border-radius: 24px;
+}
+
+.slider:before {
+    position: absolute;
+    content: "";
+    height: 16px;
+    width: 16px;
+    left: 4px;
+    bottom: 4px;
+    background-color: white;
+    transition: .4s;
+    border-radius: 50%;
+}
+
+input:checked + .slider {
+    background: var(--gradient);
+}
+
+input:checked + .slider:before {
+    transform: translateX(26px);
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+    .stats-grid {
+        grid-template-columns: 1fr;
+    }
+    
+    .dashboard-content {
+        grid-template-columns: 1fr;
+    }
+}
+</style>
+
+<script>
+// Предпросмотр аватарки
+document.getElementById('avatar-upload').addEventListener('change', function(e) {
+    const file = e.target.files[0];
+    if (file) {
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            document.querySelector('.avatar-image').src = e.target.result;
+        }
+        reader.readAsDataURL(file);
+    }
+});
+
+// Установка темы переключателя
+document.addEventListener('DOMContentLoaded', function() {
+    const currentTheme = document.documentElement.getAttribute('data-theme');
+    const themeToggle = document.getElementById('theme-toggle');
+    if (themeToggle) {
+        themeToggle.checked = currentTheme === 'dark';
+    }
+});
+</script>
+{% endblock %}

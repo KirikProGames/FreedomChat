@@ -1,0 +1,429 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="chat-container">
+    <!-- Header -->
+    <div class="chat-header">
+        <div style="display: flex; align-items: center; gap: 16px;">
+            <a href="{{ url_for('dashboard') }}" class="btn btn-secondary" 
+               style="background: rgba(255,255,255,0.2); border-color: rgba(255,255,255,0.3); color: white;">
+                ←
+            </a>
+            <div>
+                <h1 style="font-size: 20px; font-weight: 700; margin-bottom: 4px;">{{ chat_room.name }}</h1>
+                <div style="font-size: 14px; opacity: 0.9;">
+                    {% if chat_room.is_private %}
+                    🔒 Приватный чат • {{ chat_room.members|length }} участников
+                    {% else %}
+                    🌐 Публичный чат • {{ chat_room.members|length }} участников
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Messages -->
+    <div class="chat-messages" id="messages-container">
+        {% for message in messages %}
+            {% if message.message_type == 'voice' %}
+            <!-- Voice Message -->
+            <div class="message {% if message.author.id == current_user.id %}own{% endif %}" data-message-id="{{ message.id }}">
+                <div class="voice-message">
+                    <div class="message-header">
+                        <span class="message-author">{{ message.author.email.split('@')[0] }}</span>
+                        <span class="message-time">{{ message.timestamp.strftime('%H:%M') }}</span>
+                    </div>
+                    <div class="voice-player">
+                        <button class="play-btn" onclick="playVoiceMessage('{{ message.file_path }}', this)">
+                            ▶️
+                        </button>
+                        <div class="voice-waveform">
+                            <div style="font-size: 14px; opacity: 0.9;">
+                                🎤 {{ message.duration }}s
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            {% elif message.message_type in ['file', 'image'] %}
+            <!-- File Message -->
+            <div class="message {% if message.author.id == current_user.id %}own{% endif %}" data-message-id="{{ message.id }}">
+                <div class="message-content">
+                    <div class="message-header">
+                        <span class="message-author">{{ message.author.email.split('@')[0] }}</span>
+                        <span class="message-time">{{ message.timestamp.strftime('%H:%M') }}</span>
+                    </div>
+                    <div class="file-message">
+                        <div style="display: flex; align-items: center; gap: 12px; padding: 12px; background: var(--bg-secondary); border-radius: 12px;">
+                            <span style="font-size: 24px;">📎</span>
+                            <div style="flex: 1;">
+                                <div style="font-weight: 600;">{{ message.file_name }}</div>
+                                <div style="font-size: 12px; color: var(--text-secondary);">
+                                    {{ (message.file_size / 1024 / 1024) | round(2) }} MB
+                                </div>
+                            </div>
+                            <a href="{{ message.file_path }}" download class="btn btn-primary" style="padding: 8px 16px;">
+                                Скачать
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            {% else %}
+            <!-- Text Message -->
+            <div class="message {% if message.author.id == current_user.id %}own{% endif %}" data-message-id="{{ message.id }}">
+                <div class="message-content">
+                    <div class="message-header">
+                        <span class="message-author">{{ message.author.email.split('@')[0] }}</span>
+                        <span class="message-time">{{ message.timestamp.strftime('%H:%M') }}</span>
+                    </div>
+                    <div class="message-text">
+                        {{ message.content }}
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+        {% endfor %}
+    </div>
+
+    <!-- Chat Input -->
+    <div class="chat-input-wrapper">
+        <!-- Voice Recorder -->
+        <div id="voice-recorder" style="display: none; background: var(--gradient); color: white; padding: 20px; border-radius: 20px; margin-bottom: 16px;">
+            <div style="display: flex; align-items: center; justify-content: space-between;">
+                <div style="display: flex; align-items: center; gap: 12px;">
+                    <div style="width: 12px; height: 12px; background: white; border-radius: 50%; animation: pulse 1s infinite;"></div>
+                    <span>Запись...</span>
+                    <span id="recording-timer" style="font-weight: 600;">0:00</span>
+                </div>
+                <div style="display: flex; gap: 8px;">
+                    <button class="btn btn-secondary" onclick="stopRecording()" style="background: rgba(255,255,255,0.2); border-color: rgba(255,255,255,0.3);">
+                        ⏹️ Остановить
+                    </button>
+                    <button class="btn btn-secondary" onclick="cancelRecording()" style="background: rgba(255,255,255,0.2); border-color: rgba(255,255,255,0.3);">
+                        ❌ Отмена
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Text Input -->
+        <div id="text-input" style="display: flex; gap: 12px; align-items: center;">
+            <button class="btn btn-secondary" onclick="toggleVoiceRecorder()" title="Голосовое сообщение" style="padding: 12px;">
+                🎤
+            </button>
+            
+            <input type="text" id="message-input" class="form-input" placeholder="Напишите сообщение..." 
+                   style="flex: 1; margin: 0;"
+                   onkeypress="handleKeyPress(event)">
+            
+            <button class="btn btn-primary" onclick="sendMessage()" style="padding: 12px 24px;">
+                Отправить
+            </button>
+            
+            <button class="btn btn-secondary" onclick="document.getElementById('file-input').click()" title="Прикрепить файл" style="padding: 12px;">
+                📎
+            </button>
+        </div>
+        
+        <input type="file" id="file-input" style="display: none;" onchange="handleFileUpload(this.files[0])">
+    </div>
+</div>
+
+<script>
+// Socket.IO
+const socket = io();
+let currentRoom = {{ chat_room.id }};
+
+// Подключаемся к комнате
+socket.emit('join_room', { room: currentRoom });
+
+// Получение новых сообщений
+socket.on('new_message', function(data) {
+    addMessageToChat(data);
+    scrollToBottom();
+});
+
+// Индикатор печати
+socket.on('user_typing', function(data) {
+    showTypingIndicator(data.user, data.typing);
+});
+
+// Ошибки
+socket.on('error', function(data) {
+    alert('Ошибка: ' + data.message);
+});
+
+// Отправка сообщения
+function sendMessage() {
+    const input = document.getElementById('message-input');
+    const message = input.value.trim();
+    
+    if (message) {
+        socket.emit('send_message', {
+            room: currentRoom,
+            message: message,
+            type: 'text'
+        });
+        input.value = '';
+    }
+}
+
+// Горячие клавиши
+function handleKeyPress(event) {
+    if (event.ctrlKey && event.key === 'Enter') {
+        sendMessage();
+        event.preventDefault();
+    }
+    
+    // Индикатор печати
+    socket.emit('typing', {
+        room: currentRoom,
+        typing: true
+    });
+    
+    setTimeout(() => {
+        socket.emit('typing', {
+            room: currentRoom,
+            typing: false
+        });
+    }, 1000);
+}
+
+// Голосовые сообщения
+let mediaRecorder;
+let audioChunks = [];
+let recordingStartTime;
+let recordingTimer;
+
+async function toggleVoiceRecorder() {
+    const voiceRecorder = document.getElementById('voice-recorder');
+    const textInput = document.getElementById('text-input');
+    
+    if (voiceRecorder.style.display === 'none') {
+        try {
+            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            mediaRecorder = new MediaRecorder(stream);
+            audioChunks = [];
+            
+            mediaRecorder.ondataavailable = (event) => {
+                audioChunks.push(event.data);
+            };
+            
+            mediaRecorder.onstop = () => {
+                const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
+                sendVoiceMessage(audioBlob);
+                stream.getTracks().forEach(track => track.stop());
+            };
+            
+            mediaRecorder.start();
+            startRecordingTimer();
+            
+            voiceRecorder.style.display = 'block';
+            textInput.style.display = 'none';
+            
+        } catch (error) {
+            console.error('Error accessing microphone:', error);
+            alert('Не удалось получить доступ к микрофону');
+        }
+    } else {
+        stopRecording();
+    }
+}
+
+function stopRecording() {
+    if (mediaRecorder && mediaRecorder.state === 'recording') {
+        mediaRecorder.stop();
+        resetRecorder();
+    }
+}
+
+function cancelRecording() {
+    if (mediaRecorder && mediaRecorder.state === 'recording') {
+        mediaRecorder.stop();
+        audioChunks = [];
+        resetRecorder();
+    }
+}
+
+function resetRecorder() {
+    const voiceRecorder = document.getElementById('voice-recorder');
+    const textInput = document.getElementById('text-input');
+    
+    voiceRecorder.style.display = 'none';
+    textInput.style.display = 'flex';
+    clearInterval(recordingTimer);
+}
+
+function startRecordingTimer() {
+    recordingStartTime = Date.now();
+    const timerElement = document.getElementById('recording-timer');
+    
+    recordingTimer = setInterval(() => {
+        const elapsed = Math.floor((Date.now() - recordingStartTime) / 1000);
+        const minutes = Math.floor(elapsed / 60);
+        const seconds = elapsed % 60;
+        timerElement.textContent = `${minutes}:${seconds.toString().padStart(2, '0')}`;
+    }, 1000);
+}
+
+function sendVoiceMessage(audioBlob) {
+    const reader = new FileReader();
+    reader.onload = function() {
+        const duration = Math.floor((Date.now() - recordingStartTime) / 1000);
+        
+        socket.emit('voice_message', {
+            room: currentRoom,
+            audio_data: reader.result,
+            duration: duration
+        });
+    };
+    reader.readAsDataURL(audioBlob);
+}
+
+// Воспроизведение голосовых
+function playVoiceMessage(audioPath, button) {
+    const audio = new Audio(audioPath);
+    audio.play();
+    button.innerHTML = '⏸️';
+    audio.onended = function() {
+        button.innerHTML = '▶️';
+    };
+}
+
+// Загрузка файлов
+function handleFileUpload(file) {
+    if (file) {
+        const formData = new FormData();
+        formData.append('file', file);
+        
+        fetch('/upload_file', {
+            method: 'POST',
+            body: formData
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                socket.emit('send_message', {
+                    room: currentRoom,
+                    message: `Файл: ${data.file_name}`,
+                    type: 'file',
+                    file_path: data.file_path,
+                    file_name: data.file_name,
+                    file_size: data.file_size
+                });
+            } else {
+                alert('Ошибка загрузки: ' + data.error);
+            }
+        })
+        .catch(error => {
+            alert('Ошибка: ' + error);
+        });
+    }
+}
+
+// Вспомогательные функции
+function addMessageToChat(data) {
+    const messagesContainer = document.getElementById('messages-container');
+    const messageElement = document.createElement('div');
+    
+    if (data.type === 'voice') {
+        messageElement.innerHTML = `
+            <div class="message ${data.user_id === {{ current_user.id }} ? 'own' : ''}" data-message-id="${data.id}">
+                <div class="voice-message">
+                    <div class="message-header">
+                        <span class="message-author">${data.user_email.split('@')[0]}</span>
+                        <span class="message-time">${new Date(data.timestamp).toLocaleTimeString()}</span>
+                    </div>
+                    <div class="voice-player">
+                        <button class="play-btn" onclick="playVoiceMessage('${data.file_path}', this)">
+                            ▶️
+                        </button>
+                        <div class="voice-waveform">
+                            <div style="font-size: 14px; opacity: 0.9;">
+                                🎤 ${data.duration}s
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+    } else if (data.type === 'file') {
+        messageElement.innerHTML = `
+            <div class="message ${data.user_id === {{ current_user.id }} ? 'own' : ''}" data-message-id="${data.id}">
+                <div class="message-content">
+                    <div class="message-header">
+                        <span class="message-author">${data.user_email.split('@')[0]}</span>
+                        <span class="message-time">${new Date(data.timestamp).toLocaleTimeString()}</span>
+                    </div>
+                    <div class="file-message">
+                        <div style="display: flex; align-items: center; gap: 12px; padding: 12px; background: var(--bg-secondary); border-radius: 12px;">
+                            <span style="font-size: 24px;">📎</span>
+                            <div style="flex: 1;">
+                                <div style="font-weight: 600;">${data.file_name}</div>
+                                <div style="font-size: 12px; color: var(--text-secondary);">
+                                    ${(data.file_size / 1024 / 1024).toFixed(2)} MB
+                                </div>
+                            </div>
+                            <a href="${data.file_path}" download class="btn btn-primary" style="padding: 8px 16px;">
+                                Скачать
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+    } else {
+        messageElement.innerHTML = `
+            <div class="message ${data.user_id === {{ current_user.id }} ? 'own' : ''}" data-message-id="${data.id}">
+                <div class="message-content">
+                    <div class="message-header">
+                        <span class="message-author">${data.user_email.split('@')[0]}</span>
+                        <span class="message-time">${new Date(data.timestamp).toLocaleTimeString()}</span>
+                    </div>
+                    <div class="message-text">
+                        ${data.content}
+                    </div>
+                </div>
+            </div>
+        `;
+    }
+    
+    messagesContainer.appendChild(messageElement);
+}
+
+function scrollToBottom() {
+    const messagesContainer = document.getElementById('messages-container');
+    messagesContainer.scrollTop = messagesContainer.scrollHeight;
+}
+
+function showTypingIndicator(user, typing) {
+    // Можно добавить индикатор печати
+    console.log(`${user} is ${typing ? 'typing' : 'not typing'}`);
+}
+
+// Инициализация
+document.addEventListener('DOMContentLoaded', function() {
+    scrollToBottom();
+    document.getElementById('message-input').focus();
+});
+</script>
+
+<style>
+@keyframes pulse {
+    0% { opacity: 1; }
+    50% { opacity: 0.5; }
+    100% { opacity: 1; }
+}
+
+.chat-input-wrapper {
+    background: var(--bg-card);
+    border-top: 1px solid var(--border);
+    padding: 20px;
+}
+
+.file-message {
+    margin-top: 8px;
+}
+</style>
+{% endblock %}
