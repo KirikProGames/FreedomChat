@@ -1,11 +1,12 @@
+<!-- templates/login.html -->
 {% extends "base.html" %}
 
 {% block content %}
 <div class="auth-wrapper">
     <div class="auth-container">
         <div class="auth-header">
-            <h1 class="auth-title">🎉 С возвращением!</h1>
-            <p class="auth-subtitle">Войдите в свой аккаунт FreedomChat</p>
+            <h1 class="auth-title">🟠 FreedomChat</h1>
+            <p class="auth-subtitle">Войдите в свой аккаунт</p>
         </div>
 
         <form method="POST" class="auth-form">
@@ -20,7 +21,7 @@
             </div>
 
             <button type="submit" class="btn btn-primary" style="width: 100%;">
-                🚀 Войти в аккаунт
+                Войти в аккаунт
             </button>
         </form>
 
@@ -38,91 +39,9 @@
                 Ещё нет аккаунта?
             </p>
             <a href="{{ url_for('register') }}" class="btn btn-secondary" style="width: 100%;">
-                📝 Создать новый аккаунт
+                Создать новый аккаунт
             </a>
-        </div>
-
-        <div style="text-align: center; margin-top: 24px; padding-top: 24px; border-top: 1px solid var(--border);">
-            <p style="color: var(--text-secondary); font-size: 14px;">
-                🔒 Ваши данные в безопасности
-            </p>
-            <div style="display: grid; gap: 4px; font-size: 12px; color: var(--text-secondary); margin-top: 8px;">
-                <div>✨ Скорость</div>
-                <div>🔐 Безопасность</div>
-                <div>🎯 Простота</div>
-            </div>
         </div>
     </div>
 </div>
-
-<style>
-.auth-form {
-    space-y: 24px;
-}
-
-/* Анимации для кнопок */
-.btn {
-    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-}
-
-.btn:active {
-    transform: scale(0.98);
-}
-
-/* Улучшения для мобильных */
-@media (max-width: 480px) {
-    .auth-container {
-        margin: 0;
-        border-radius: 0;
-        min-height: 100vh;
-        display: flex;
-        flex-direction: column;
-        justify-content: center;
-    }
-}
-
-/* Фокус состояния */
-.form-input:focus {
-    transform: translateY(-1px);
-}
-</style>
-
-<script>
-document.addEventListener('DOMContentLoaded', function() {
-    // Автофокус на поле email
-    const emailInput = document.querySelector('input[name="email"]');
-    if (emailInput) {
-        setTimeout(() => {
-            emailInput.focus();
-        }, 100);
-    }
-
-    // Валидация формы
-    const form = document.querySelector('.auth-form');
-    if (form) {
-        form.addEventListener('submit', function(e) {
-            const email = document.querySelector('input[name="email"]').value;
-            const password = document.querySelector('input[name="password"]').value;
-            
-            if (!email || !password) {
-                e.preventDefault();
-                showNotification('Ошибка', 'Заполните все поля', 'error');
-            }
-        });
-    }
-
-    // Анимация появления
-    const authContainer = document.querySelector('.auth-container');
-    if (authContainer) {
-        authContainer.style.opacity = '0';
-        authContainer.style.transform = 'translateY(20px)';
-        
-        setTimeout(() => {
-            authContainer.style.transition = 'all 0.5s ease';
-            authContainer.style.opacity = '1';
-            authContainer.style.transform = 'translateY(0)';
-        }, 100);
-    }
-});
-</script>
 {% endblock %}
