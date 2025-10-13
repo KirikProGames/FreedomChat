@@ -1,3 +1,4 @@
+<!-- templates/dashboard.html -->
 {% extends "base.html" %}
 
 {% block content %}
@@ -5,14 +6,14 @@
     <!-- Header -->
     <div class="dashboard-header">
         <div style="position: relative; z-index: 2;">
-            <h1 class="dashboard-title">✨ Добро пожаловать, {{ current_user.username or current_user.email.split('@')[0] }}!</h1>
-            <p class="dashboard-subtitle">Рады видеть вас снова в FreedomChat</p>
+            <h1 class="dashboard-title">👋 Добро пожаловать, {{ current_user.username or current_user.email.split('@')[0] }}!</h1>
+            <p class="dashboard-subtitle">Рады видеть вас в FreedomChat</p>
         </div>
-        <div style="display: flex; gap: 12px; position: relative; z-index: 2; flex-wrap: wrap;">
-            <a href="{{ url_for('profile') }}" class="btn btn-secondary" style="background: rgba(255,255,255,0.2); border-color: rgba(255,255,255,0.3); color: white;">
+        <div style="display: flex; gap: 12px; position: relative; z-index: 2; flex-wrap: wrap; margin-top: 20px;">
+            <a href="{{ url_for('profile') }}" class="btn" style="background: rgba(255,255,255,0.2); border: 1px solid rgba(255,255,255,0.3); color: white;">
                 👤 Профиль
             </a>
-            <a href="{{ url_for('logout') }}" class="btn btn-secondary" style="background: rgba(255,255,255,0.2); border-color: rgba(255,255,255,0.3); color: white;">
+            <a href="{{ url_for('logout') }}" class="btn" style="background: rgba(255,255,255,0.2); border: 1px solid rgba(255,255,255,0.3); color: white;">
                 🚪 Выйти
             </a>
         </div>
@@ -41,7 +42,7 @@
 
         <!-- Create Chat Card -->
         <div class="feature-card">
-            <div class="feature-icon">🆕</div>
+            <div class="feature-icon">💬</div>
             <h3 class="feature-title">Создать новый чат</h3>
             
             <form method="POST" action="{{ url_for('create_chat') }}">
@@ -95,79 +96,40 @@
             </div>
         </div>
 
-        <!-- Quick Actions Card -->
-        <div class="feature-card">
-            <div class="feature-icon">⚡</div>
-            <h3 class="feature-title">Быстрые действия</h3>
-            
-            <div style="display: grid; gap: 12px;">
-                <a href="{{ url_for('profile') }}" class="btn btn-secondary" style="justify-content: start; gap: 12px;">
-                    👤 Редактировать профиль
-                </a>
-                
-                <button class="btn btn-secondary" style="justify-content: start; gap: 12px;" onclick="toggleTheme()">
-                    🌙 Сменить тему
-                </button>
-                
-                <button class="btn btn-secondary" style="justify-content: start; gap: 12px;" onclick="testNotification()">
-                    🔔 Тест уведомлений
-                </button>
-
-                <button class="btn btn-secondary" style="justify-content: start; gap: 12px;" onclick="showKeyboardShortcuts()">
-                    ⌨️ Горячие клавиши
-                </button>
-            </div>
-        </div>
-
-        <!-- Chat List Card -->
+        <!-- Chat List -->
         <div class="feature-card" style="grid-column: 1 / -1;">
-            <div class="feature-icon">💬</div>
+            <div class="feature-icon">💭</div>
             <h3 class="feature-title">
                 Ваши чаты 
-                <span style="background: var(--gradient); color: white; padding: 4px 12px; border-radius: 20px; font-size: 14px; margin-left: 8px;">
+                <span style="background: var(--primary-orange); color: white; padding: 4px 12px; border-radius: 20px; font-size: 14px; margin-left: 8px;">
                     {{ chat_rooms|length }}
                 </span>
             </h3>
 
             {% if chat_rooms %}
-            <div class="chats-grid">
+            <div class="chats-list">
                 {% for room in chat_rooms %}
-                <div class="chat-card" onclick="openChat({{ room.id }})">
-                    <div class="chat-avatar">
+                <div class="chat-item" onclick="openChat({{ room.id }})">
+                    <div class="chat-avatar" style="background: var(--primary-light); display: flex; align-items: center; justify-content: center; color: white; font-weight: bold;">
                         {% if room.is_direct %}
                         👤
                         {% else %}
                         {{ room.name[0] | upper }}
                         {% endif %}
                     </div>
-                    <div class="chat-info">
+                    <div class="chat-preview">
                         <div class="chat-name">
                             {{ room.name }}
                             {% if room.is_direct %}
-                            <span style="font-size: 12px; color: var(--text-secondary); margin-left: 8px;">ЛС</span>
+                            <span style="font-size: 12px; color: var(--text-secondary);">ЛС</span>
                             {% endif %}
                         </div>
-                        <div class="chat-meta">
-                            <span>👥 {{ room.members|length }} участников</span>
+                        <div class="last-message">
+                            👥 {{ room.members|length }} участников
                             {% if room.is_private and not room.is_direct %}
-                            <span>🔒 Приватный</span>
-                            <span>Код: {{ room.code }}</span>
-                            {% endif %}
-                            {% if room.is_direct %}
-                            <span>💌 Личные сообщения</span>
+                            • 🔒 Приватный
                             {% endif %}
                         </div>
-                    </div>
-                    <div class="chat-actions">
-                        {% if not room.is_direct %}
-                        <a href="{{ url_for('video_call', chat_id=room.id) }}" class="btn-call" 
-                           title="Начать видеозвонок" onclick="event.stopPropagation()">
-                            📞
-                        </a>
-                        {% endif %}
-                        <a href="{{ url_for('chat', chat_id=room.id) }}" class="btn-open">
-                            💬
-                        </a>
                     </div>
                 </div>
                 {% endfor %}
@@ -181,157 +143,11 @@
                 <p style="color: var(--text-secondary); margin-bottom: 32px;">
                     Создайте первый чат или присоединитесь к существующему
                 </p>
-                <div style="display: grid; gap: 12px; max-width: 300px; margin: 0 auto;">
-                    <div style="display: flex; align-items: center; gap: 12px; padding: 16px; background: var(--bg-secondary); border-radius: 12px;">
-                        <span style="font-size: 20px;">💡</span>
-                        <span style="font-size: 14px; color: var(--text-primary);">
-                            <strong>Совет:</strong> Найдите пользователей через поиск
-                        </span>
-                    </div>
-                    <div style="display: flex; align-items: center; gap: 12px; padding: 16px; background: var(--bg-secondary); border-radius: 12px;">
-                        <span style="font-size: 20px;">💡</span>
-                        <span style="font-size: 14px; color: var(--text-primary);">
-                            <strong>Совет:</strong> Создайте ЛС для приватного общения
-                        </span>
-                    </div>
-                </div>
             </div>
             {% endif %}
         </div>
     </div>
 </div>
-
-<style>
-.chat-actions {
-    display: flex;
-    gap: 8px;
-    align-items: center;
-}
-
-.btn-call {
-    background: var(--success);
-    color: white;
-    width: 40px;
-    height: 40px;
-    border-radius: 50%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    text-decoration: none;
-    font-size: 16px;
-    transition: all 0.3s ease;
-    border: none;
-    cursor: pointer;
-}
-
-.btn-call:hover {
-    transform: scale(1.1);
-    box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);
-}
-
-.btn-open {
-    background: var(--primary);
-    color: white;
-    width: 40px;
-    height: 40px;
-    border-radius: 50%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    text-decoration: none;
-    font-size: 16px;
-    transition: all 0.3s ease;
-}
-
-.btn-open:hover {
-    transform: scale(1.1);
-    box-shadow: 0 4px 12px rgba(99, 102, 241, 0.3);
-}
-
-/* Search Results */
-.search-result {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    padding: 12px;
-    background: var(--bg-secondary);
-    border-radius: 12px;
-    margin-bottom: 8px;
-    cursor: pointer;
-    transition: all 0.3s ease;
-}
-
-.search-result:hover {
-    background: var(--bg-primary);
-    transform: translateX(4px);
-}
-
-.search-result-avatar {
-    width: 40px;
-    height: 40px;
-    border-radius: 10px;
-    background: var(--gradient);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    color: white;
-    font-weight: bold;
-    font-size: 16px;
-}
-
-.search-result-info {
-    flex: 1;
-}
-
-.search-result-name {
-    font-weight: 600;
-    color: var(--text-primary);
-    margin-bottom: 2px;
-}
-
-.search-result-email {
-    font-size: 12px;
-    color: var(--text-secondary);
-}
-
-.search-result-status {
-    width: 8px;
-    height: 8px;
-    border-radius: 50%;
-}
-
-.search-result-status.online {
-    background: var(--success);
-}
-
-.search-result-status.offline {
-    background: var(--secondary);
-}
-
-.no-results {
-    text-align: center;
-    padding: 20px;
-    color: var(--text-secondary);
-    font-size: 14px;
-}
-
-.loading-results {
-    text-align: center;
-    padding: 20px;
-    color: var(--text-secondary);
-}
-
-.loading-results::after {
-    content: '...';
-    animation: dots 1.5s steps(4, end) infinite;
-}
-
-@keyframes dots {
-    0%, 20% { color: var(--text-secondary); text-shadow: none; }
-    50% { color: var(--primary); text-shadow: 0 0 5px var(--primary); }
-    100% { color: var(--text-secondary); text-shadow: none; }
-}
-</style>
 
 <script>
 // Поиск пользователей
@@ -348,9 +164,8 @@ function searchUsers(query) {
     }
     
     searchInfo.style.display = 'none';
-    resultsContainer.innerHTML = '<div class="loading-results">Поиск</div>';
+    resultsContainer.innerHTML = '<div style="text-align: center; padding: 20px; color: var(--text-secondary);">Поиск...</div>';
     
-    // Debounce поиска
     clearTimeout(searchTimeout);
     searchTimeout = setTimeout(() => {
         fetch(`/search_users?q=${encodeURIComponent(query)}`)
@@ -360,7 +175,7 @@ function searchUsers(query) {
             })
             .catch(error => {
                 console.error('Search error:', error);
-                resultsContainer.innerHTML = '<div class="no-results">Ошибка поиска</div>';
+                resultsContainer.innerHTML = '<div style="text-align: center; padding: 20px; color: var(--danger);">Ошибка поиска</div>';
             });
     }, 300);
 }
@@ -369,77 +184,37 @@ function displaySearchResults(users) {
     const resultsContainer = document.getElementById('search-results');
     
     if (users.length === 0) {
-        resultsContainer.innerHTML = '<div class="no-results">😔 Пользователи не найдены</div>';
+        resultsContainer.innerHTML = '<div style="text-align: center; padding: 20px; color: var(--text-secondary);">😔 Пользователи не найдены</div>';
         return;
     }
     
     resultsContainer.innerHTML = users.map(user => `
-        <div class="search-result" onclick="openUserProfile(${user.id})">
-            <div class="search-result-avatar">
+        <div class="chat-item" onclick="createDM(${user.id})">
+            <div class="chat-avatar" style="background: var(--primary-light); display: flex; align-items: center; justify-content: center; color: white; font-weight: bold;">
                 ${user.username ? user.username[0].toUpperCase() : '👤'}
             </div>
-            <div class="search-result-info">
-                <div class="search-result-name">${user.username || 'Без имени'}</div>
-                <div class="search-result-email">${user.email}</div>
+            <div class="chat-preview">
+                <div class="chat-name">
+                    ${user.username || 'Без имени'}
+                    <span style="width: 8px; height: 8px; border-radius: 50%; background: ${user.online ? 'var(--success)' : 'var(--text-muted)'}; display: inline-block; margin-left: 8px;"></span>
+                </div>
+                <div class="last-message">${user.email}</div>
             </div>
-            <div class="search-result-status ${user.online ? 'online' : 'offline'}"></div>
         </div>
     `).join('');
 }
 
-function openUserProfile(userId) {
-    // Получаем информацию о пользователе и открываем профиль
-    window.location.href = `/profile/${userId}`;
+function createDM(userId) {
+    window.location.href = `/create_dm/${userId}`;
 }
 
 function openChat(chatId) {
     window.location.href = `/chat/${chatId}`;
 }
 
-function testNotification() {
-    if ('Notification' in window) {
-        if (Notification.permission === 'granted') {
-            new Notification('FreedomChat', { 
-                body: 'Тестовое уведомление!', 
-                icon: '/static/favicon.ico' 
-            });
-        } else if (Notification.permission !== 'denied') {
-            Notification.requestPermission().then(permission => {
-                if (permission === 'granted') {
-                    new Notification('FreedomChat', { 
-                        body: 'Тестовое уведомление!', 
-                        icon: '/static/favicon.ico' 
-                    });
-                }
-            });
-        }
-    }
-    
-    showNotification('Тест уведомлений', '🔔 Это тестовое уведомление!', 'success');
-}
-
-function showKeyboardShortcuts() {
-    showNotification('Горячие клавиши', 
-        '⌨️ Горячие клавиши:\n\n' +
-        'Ctrl+Enter - отправить сообщение\n' +
-        'Ctrl+/ - показать справку\n' +
-        'Esc - закрыть модальные окна\n\n' +
-        'На мобильных:\n' +
-        'Тап по чату - открыть\n' +
-        'Свайп - дополнительные действия', 
-        'info'
-    );
-}
-
 // Инициализация при загрузке
 document.addEventListener('DOMContentLoaded', function() {
     document.getElementById('search-info').style.display = 'block';
-    
-    // Автофокус на поле поиска
-    const searchInput = document.getElementById('user-search');
-    if (searchInput) {
-        searchInput.focus();
-    }
 });
 </script>
 {% endblock %}
