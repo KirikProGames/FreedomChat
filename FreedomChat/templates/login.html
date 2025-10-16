@@ -1,45 +1,35 @@
-<!-- templates/login.html -->
 {% extends "base.html" %}
 
 {% block content %}
 <div class="auth-wrapper">
     <div class="auth-container">
         <div class="auth-header">
-            <h1 class="auth-title">🟠 FreedomChat</h1>
-            <p class="auth-subtitle">Войдите в свой аккаунт</p>
+            <h1 class="auth-title">DELTA</h1>
+            <p class="auth-subtitle">Вход в систему</p>
         </div>
 
-        <form method="POST" class="auth-form">
+        <form method="POST">
             <div class="form-group">
-                <label class="form-label">📧 Email адрес</label>
-                <input type="email" name="email" class="form-input" placeholder="your@email.com" required>
+                <label class="form-label">Email</label>
+                <input type="email" name="email" class="form-input" required>
             </div>
 
             <div class="form-group">
-                <label class="form-label">🔑 Пароль</label>
-                <input type="password" name="password" class="form-input" placeholder="Введите ваш пароль" required>
+                <label class="form-label">Пароль</label>
+                <input type="password" name="password" class="form-input" required>
             </div>
 
-            <button type="submit" class="btn btn-primary" style="width: 100%;">
-                Войти в аккаунт
+            <button type="submit" class="btn btn-primary" style="width: 100%; margin-bottom: 20px;">
+                Войти
             </button>
         </form>
 
-        <div class="auth-divider">
-            <span>или</span>
-        </div>
-
-        <a href="{{ url_for('google_login') }}" class="btn btn-google" style="width: 100%; margin-bottom: 24px;">
-            <div class="google-icon"></div>
-            Продолжить с Google
-        </a>
-
-        <div class="auth-footer" style="text-align: center; margin-top: 32px;">
+        <div style="text-align: center;">
             <p style="color: var(--text-secondary); margin-bottom: 16px;">
-                Ещё нет аккаунта?
+                Нет аккаунта?
             </p>
             <a href="{{ url_for('register') }}" class="btn btn-secondary" style="width: 100%;">
-                Создать новый аккаунт
+                Создать аккаунт
             </a>
         </div>
     </div>
