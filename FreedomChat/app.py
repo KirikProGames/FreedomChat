@@ -1,7 +1,7 @@
 import os
 import random
 import string
-from datetime import datetime
+from datetime import datetime, timedelta
 from flask import Flask, render_template, request, redirect, url_for, flash, jsonify, send_file
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager, login_user, login_required, logout_user, current_user, UserMixin
@@ -12,10 +12,11 @@ from authlib.integrations.flask_client import OAuth
 from flask_migrate import Migrate
 import json
 import base64
+import requests
 
 app = Flask(__name__)
-app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'dev-key-change-in-production')
-app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('DATABASE_URL', 'sqlite:///database.db')
+app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'delta-secret-key-2024')
+app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('DATABASE_URL', 'sqlite:///delta.db')
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['UPLOAD_FOLDER'] = 'uploads'
 app.config['VOICE_FOLDER'] = 'uploads/voice'
@@ -35,30 +36,39 @@ socketio = SocketIO(app, cors_allowed_origins="*", logger=True, engineio_logger=
 login_manager = LoginManager(app)
 login_manager.login_view = 'login'
 
-# OAuth настройки для Google
-oauth = OAuth(app)
-google = oauth.register(
-    name='google',
-    client_id=os.environ.get('GOOGLE_CLIENT_ID', ''),
-    client_secret=os.environ.get('GOOGLE_CLIENT_SECRET', ''),
-    server_metadata_url='https://accounts.google.com/.well-known/openid_configuration',
-    client_kwargs={
-        'scope': 'openid email profile'
-    }
-)
+# Конфигурация цен
+CURRENCY_RATES = {
+    100: 100,    # 102 рубля = 100 DELTA Coins
+    200: 200,    # 159 рублей = 200 DELTA Coins  
+    500: 500,    # 549 рублей = 500 DELTA Coins
+    900: 900,    # 981 рубль = 900 DELTA Coins
+    1000: 1000,  # 1100 рублей = 1000 DELTA Coins
+    10000: 10000 # 10010 рублей = 10000 DELTA Coins
+}
 
-# Модель для связи пользователей и чатов с ролями
+PREMIUM_PRICES = {
+    1: 120,    # 1 месяц - 120 Coins
+    3: 300,    # 3 месяца - 300 Coins (экономия 60)
+    6: 540,    # 6 месяцев - 540 Coins (экономия 180)  
+    12: 960    # 12 месяцев - 960 Coins (экономия 480)
+}
+
+# Настройки ЮMoney
+YOOMONEY_CLIENT_ID = os.environ.get('YOOMONEY_CLIENT_ID', 'your_client_id')
+YOOMONEY_CLIENT_SECRET = os.environ.get('YOOMONEY_CLIENT_SECRET', 'your_client_secret')
+YOOMONEY_ACCESS_TOKEN = os.environ.get('YOOMONEY_ACCESS_TOKEN', 'your_access_token')
+YOOMONEY_RECEIVER = os.environ.get('YOOMONEY_RECEIVER', '410011XXXXXXXXXX')  # Ваш кошелек ЮMoney
+
 class UserChatRoom(db.Model):
     __tablename__ = 'user_chatroom'
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), primary_key=True)
     chat_room_id = db.Column(db.Integer, db.ForeignKey('chat_room.id'), primary_key=True)
-    role = db.Column(db.String(20), default='member')  # owner, admin, member
+    role = db.Column(db.String(20), default='member')
     joined_at = db.Column(db.DateTime, default=datetime.utcnow)
     
     user = db.relationship('User', backref='chat_associations')
     chat_room = db.relationship('ChatRoom', backref='user_associations')
 
-# Модели БД
 class User(db.Model, UserMixin):
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(50), unique=True, nullable=True)
@@ -68,14 +78,17 @@ class User(db.Model, UserMixin):
     avatar = db.Column(db.String(100), default='default.png')
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     is_active = db.Column(db.Boolean, default=True)
-    status = db.Column(db.String(100), default='')
     last_seen = db.Column(db.DateTime, default=datetime.utcnow)
     is_admin = db.Column(db.Boolean, default=False)
-    bio = db.Column(db.Text, default='')
-    phone = db.Column(db.String(20))
-    google_id = db.Column(db.String(100), unique=True, nullable=True)
-    badge = db.Column(db.String(20), default='')  # red, blue, yellow, purple, admin
-    is_super_admin = db.Column(db.Boolean, default=False)  # Создатель мессенджера
+    display_name = db.Column(db.String(50))
+    is_anonymous = db.Column(db.Boolean, default=True)
+    
+    # Премиум система
+    premium_expires = db.Column(db.DateTime)
+    balance = db.Column(db.Float, default=0.0)
+    currency = db.Column(db.Integer, default=0)
+    is_premium = db.Column(db.Boolean, default=False)
+    premium_features = db.Column(db.Text, default='{}')  # JSON с активными фичами
     
     messages = db.relationship('Message', backref='author', lazy=True)
     chat_rooms = db.relationship('ChatRoom', secondary='user_chatroom', backref='members')
@@ -88,19 +101,18 @@ class User(db.Model, UserMixin):
             return False
         return check_password_hash(self.password_hash, password)
     
+    def get_display_name(self):
+        return self.display_name or self.username or f"User{self.id:04d}"
+    
     def to_dict(self):
         return {
             'id': self.id,
-            'username': self.username,
-            'email': self.email,
+            'username': self.get_display_name(),
+            'email': self.email if not self.is_anonymous else 'anonymous@delta.chat',
             'avatar': self.avatar,
             'online': self.online,
-            'status': self.status,
-            'bio': self.bio,
-            'last_seen': self.last_seen.isoformat() if self.last_seen else None,
-            'badge': self.badge,
-            'is_admin': self.is_admin,
-            'is_super_admin': self.is_super_admin
+            'is_anonymous': self.is_anonymous,
+            'is_premium': self.is_premium
         }
     
     def get_role_in_chat(self, chat_room_id):
@@ -110,15 +122,19 @@ class User(db.Model, UserMixin):
         ).first()
         return association.role if association else None
     
-    def get_badge_info(self):
-        badges = {
-            'red': {'emoji': '🔴', 'title': 'Создатель мессенджера', 'color': '#ff4444'},
-            'blue': {'emoji': '🔵', 'title': 'Владелец крупного канала', 'color': '#4444ff'},
-            'yellow': {'emoji': '🟡', 'title': 'Популярная личность', 'color': '#ffaa00'},
-            'purple': {'emoji': '🟣', 'title': 'Администратор', 'color': '#aa44ff'},
-            'admin': {'emoji': '⚡', 'title': 'Системный администратор', 'color': '#00ff00'}
-        }
-        return badges.get(self.badge, {})
+    def check_premium(self):
+        if self.premium_expires and self.premium_expires > datetime.utcnow():
+            self.is_premium = True
+        else:
+            self.is_premium = False
+        return self.is_premium
+    
+    def get_premium_features(self):
+        return json.loads(self.premium_features) if self.premium_features else {}
+    
+    def has_premium_feature(self, feature):
+        features = self.get_premium_features()
+        return features.get(feature, False)
 
 class ChatRoom(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -129,13 +145,12 @@ class ChatRoom(db.Model):
     is_channel = db.Column(db.Boolean, default=False)
     is_direct = db.Column(db.Boolean, default=False)
     code = db.Column(db.String(10), unique=True)
-    invite_link = db.Column(db.String(20), unique=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     created_by = db.Column(db.Integer, db.ForeignKey('user.id'))
-    theme = db.Column(db.String(20), default='light')
-    settings = db.Column(db.Text, default='{}')  # JSON настройки чата
+    theme = db.Column(db.String(20), default='dark')
+    settings = db.Column(db.Text, default='{}')
+    is_encrypted = db.Column(db.Boolean, default=False)
     
-    # Для личных сообщений
     user1_id = db.Column(db.Integer, db.ForeignKey('user.id'))
     user2_id = db.Column(db.Integer, db.ForeignKey('user.id'))
     
@@ -164,11 +179,9 @@ class ChatRoom(db.Model):
             
         settings = self.get_settings()
         
-        # Если канал, проверяем права
         if self.is_channel:
             return user_role.role in ['owner', 'admin']
         
-        # Для обычных чатов проверяем настройки
         if settings.get('only_admins_can_post', False):
             return user_role.role in ['owner', 'admin']
         
@@ -185,10 +198,31 @@ class Message(db.Model):
     file_name = db.Column(db.String(200))
     file_size = db.Column(db.Integer)
     duration = db.Column(db.Integer)
-    reply_to_id = db.Column(db.Integer, db.ForeignKey('message.id'))
-    edited = db.Column(db.Boolean, default=False)
+    is_encrypted = db.Column(db.Boolean, default=False)
+    encryption_key = db.Column(db.String(500))
     
     reply_to = db.relationship('Message', remote_side=[id], backref='replies')
+
+class Transaction(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'))
+    amount = db.Column(db.Float)
+    currency_amount = db.Column(db.Integer)
+    payment_method = db.Column(db.String(50))
+    payment_id = db.Column(db.String(100))
+    status = db.Column(db.String(20), default='pending')
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    
+    user = db.relationship('User', backref='transactions')
+
+class PremiumPurchase(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'))
+    months = db.Column(db.Integer)
+    currency_cost = db.Column(db.Integer)
+    purchased_at = db.Column(db.DateTime, default=datetime.utcnow)
+    
+    user = db.relationship('User', backref='premium_purchases')
 
 @login_manager.user_loader
 def load_user(user_id):
@@ -198,721 +232,85 @@ def generate_code(length=6):
     characters = string.ascii_letters + string.digits
     return ''.join(random.choice(characters) for i in range(length))
 
-def generate_invite_link():
-    return ''.join(random.choice(string.ascii_lowercase + string.digits) for _ in range(10))
+def generate_anonymous_name():
+    adjectives = ['Hidden', 'Secret', 'Shadow', 'Dark', 'Mysterious', 'Silent', 'Ghost', 'Stealth']
+    nouns = ['Wolf', 'Fox', 'Raven', 'Phantom', 'Stranger', 'Visitor', 'Watcher', 'Wanderer']
+    return f"{random.choice(adjectives)}_{random.choice(nouns)}_{random.randint(1000,9999)}"
 
-# Админ-маршруты
-@app.route('/admin')
-@login_required
-def admin_panel():
-    if not current_user.is_super_admin and not current_user.is_admin:
-        flash('Доступ запрещен')
-        return redirect(url_for('dashboard'))
-    
-    users = User.query.all()
-    chat_rooms_count = ChatRoom.query.count()
-    online_users_count = User.query.filter_by(online=True).count()
-    admins_count = User.query.filter_by(is_admin=True).count()
-    
-    return render_template('admin_panel.html', 
-                         users=users, 
-                         chat_rooms_count=chat_rooms_count,
-                         online_users_count=online_users_count,
-                         admins_count=admins_count)
+# Функции для премиум возможностей
+def get_max_file_size(user):
+    return 2 * 1024 * 1024 * 1024 if user.is_premium else 50 * 1024 * 1024  # 2GB vs 50MB
 
-@app.route('/admin/users')
-@login_required
-def admin_users():
-    if not current_user.is_super_admin and not current_user.is_admin:
-        return jsonify({'error': 'Доступ запрещен'}), 403
-    
-    users = User.query.all()
-    return jsonify([{
-        'id': user.id,
-        'username': user.username,
-        'email': user.email,
-        'online': user.online,
-        'is_admin': user.is_admin,
-        'is_super_admin': user.is_super_admin,
-        'badge': user.badge,
-        'created_at': user.created_at.isoformat(),
-        'last_seen': user.last_seen.isoformat() if user.last_seen else None
-    } for user in users])
+def can_use_advanced_features(user):
+    return user.is_premium
 
-@app.route('/admin/update_user/<int:user_id>', methods=['POST'])
-@login_required
-def admin_update_user(user_id):
-    if not current_user.is_super_admin:
-        flash('Только создатель мессенджера может изменять пользователей')
-        return redirect(url_for('admin_panel'))
-    
-    target_user = User.query.get_or_404(user_id)
-    
-    # Защита от изменения самого себя
-    if target_user.id == current_user.id:
-        flash('Нельзя изменять свой собственный профиль через админ-панель')
-        return redirect(url_for('admin_panel'))
-    
-    action = request.form.get('action')
-    
-    if action == 'toggle_admin':
-        target_user.is_admin = not target_user.is_admin
-        if target_user.is_admin and not target_user.badge:
-            target_user.badge = 'purple'
-        db.session.commit()
-        flash(f'Статус администратора для {target_user.username} изменен')
-    
-    elif action == 'set_badge':
-        badge = request.form.get('badge')
-        if badge in ['red', 'blue', 'yellow', 'purple', 'admin', '']:
-            target_user.badge = badge
-            db.session.commit()
-            flash(f'Галочка для {target_user.username} обновлена')
-    
-    elif action == 'update_profile':
-        username = request.form.get('username')
-        email = request.form.get('email')
-        status = request.form.get('status')
+def get_message_history_limit(user):
+    return float('inf') if user.is_premium else 1000  # Бесконечная история vs 1000 сообщений
+
+def can_create_large_groups(user):
+    return user.is_premium  # Премиум пользователи могут создавать большие группы
+
+# ЮMoney API функции
+def create_yoomoney_payment(amount, description, user_id):
+    try:
+        # Создаем запрос на оплату через ЮMoney
+        payment_data = {
+            'pattern_id': 'p2p',
+            'to': YOOMONEY_RECEIVER,
+            'amount_due': amount,
+            'comment': description,
+            'message': f'DELTA Coins для пользователя {user_id}',
+            'label': f'delta_{user_id}_{int(datetime.utcnow().timestamp())}',
+            'test': True if os.environ.get('FLASK_DEBUG') == 'True' else False
+        }
         
-        if username and username != target_user.username:
-            existing_user = User.query.filter_by(username=username).first()
-            if existing_user and existing_user.id != target_user.id:
-                flash('Этот username уже занят')
-            else:
-                target_user.username = username
+        headers = {
+            'Authorization': f'Bearer {YOOMONEY_ACCESS_TOKEN}',
+            'Content-Type': 'application/x-www-form-urlencoded'
+        }
         
-        if email and email != target_user.email:
-            existing_user = User.query.filter_by(email=email).first()
-            if existing_user and existing_user.id != target_user.id:
-                flash('Этот email уже занят')
-            else:
-                target_user.email = email
+        response = requests.post(
+            'https://yoomoney.ru/api/request-payment',
+            data=payment_data,
+            headers=headers
+        )
         
-        target_user.status = status
-        db.session.commit()
-        flash(f'Профиль {target_user.username} обновлен')
-    
-    elif action == 'delete_user':
-        # Нельзя удалить самого себя
-        if target_user.id == current_user.id:
-            flash('Нельзя удалить свой собственный аккаунт')
+        if response.status_code == 200:
+            data = response.json()
+            return {
+                'success': True,
+                'payment_url': data.get('payment_url'),
+                'payment_id': data.get('request_id')
+            }
         else:
-            db.session.delete(target_user)
-            db.session.commit()
-            flash(f'Пользователь {target_user.username} удален')
-    
-    return redirect(url_for('admin_panel'))
+            return {
+                'success': False,
+                'error': 'Ошибка создания платежа'
+            }
+            
+    except Exception as e:
+        return {
+            'success': False,
+            'error': str(e)
+        }
 
-@app.route('/admin/create_user', methods=['POST'])
-@login_required
-def admin_create_user():
-    if not current_user.is_super_admin:
-        flash('Только создатель мессенджера может создавать пользователей')
-        return redirect(url_for('admin_panel'))
-    
-    username = request.form.get('username')
-    email = request.form.get('email')
-    password = request.form.get('password')
-    is_admin = request.form.get('is_admin') == 'on'
-    badge = request.form.get('badge', '')
-    
-    if User.query.filter_by(email=email).first():
-        flash('Пользователь с таким email уже существует')
-        return redirect(url_for('admin_panel'))
-    
-    user = User(
-        username=username,
-        email=email,
-        is_admin=is_admin,
-        badge=badge
-    )
-    user.set_password(password)
-    
-    db.session.add(user)
-    db.session.commit()
-    flash(f'Пользователь {username} создан')
-    
-    return redirect(url_for('admin_panel'))
-
-# Новые маршруты для управления чатами
-@app.route('/chat/<int:chat_id>/settings')
-@login_required
-def chat_settings(chat_id):
-    chat_room = ChatRoom.query.get_or_404(chat_id)
-    
-    if current_user not in chat_room.members:
-        flash('У вас нет доступа к этому чату')
-        return redirect(url_for('dashboard'))
-    
-    user_role = current_user.get_role_in_chat(chat_id)
-    is_owner_or_admin = user_role in ['owner', 'admin']
-    
-    return render_template('chat_settings.html', 
-                         chat_room=chat_room, 
-                         user_role=user_role,
-                         is_owner_or_admin=is_owner_or_admin)
-
-@app.route('/chat/<int:chat_id>/update', methods=['POST'])
-@login_required
-def update_chat(chat_id):
-    chat_room = ChatRoom.query.get_or_404(chat_id)
-    
-    user_role = current_user.get_role_in_chat(chat_id)
-    if user_role not in ['owner', 'admin']:
-        flash('Только владелец и администраторы могут изменять настройки чата')
-        return redirect(url_for('chat_settings', chat_id=chat_id))
-    
-    name = request.form.get('name')
-    description = request.form.get('description')
-    
-    if name and name != chat_room.name:
-        chat_room.name = name
-    
-    chat_room.description = description
-    
-    # Обновление аватара
-    if 'avatar' in request.files:
-        avatar_file = request.files['avatar']
-        if avatar_file.filename:
-            filename = f"chat_{chat_room.id}_{datetime.utcnow().strftime('%Y%m%d_%H%M%S')}.png"
-            filepath = os.path.join(app.config['CHAT_AVATARS_FOLDER'], filename)
-            avatar_file.save(filepath)
-            chat_room.avatar = filename
-    
-    # Настройки чата
-    settings = chat_room.get_settings()
-    settings['only_admins_can_post'] = request.form.get('only_admins_can_post') == 'on'
-    chat_room.set_settings(settings)
-    
-    db.session.commit()
-    flash('Настройки чата обновлены!')
-    return redirect(url_for('chat_settings', chat_id=chat_id))
-
-@app.route('/chat/<int:chat_id>/members')
-@login_required
-def chat_members(chat_id):
-    chat_room = ChatRoom.query.get_or_404(chat_id)
-    
-    if current_user not in chat_room.members:
-        flash('У вас нет доступа к этому чату')
-        return redirect(url_for('dashboard'))
-    
-    # Получаем участников с их ролями
-    members_with_roles = db.session.query(User, UserChatRoom.role).\
-        join(UserChatRoom, User.id == UserChatRoom.user_id).\
-        filter(UserChatRoom.chat_room_id == chat_id).\
-        all()
-    
-    user_role = current_user.get_role_in_chat(chat_id)
-    is_owner_or_admin = user_role in ['owner', 'admin']
-    
-    return render_template('chat_members.html',
-                         chat_room=chat_room,
-                         members=members_with_roles,
-                         user_role=user_role,
-                         is_owner_or_admin=is_owner_or_admin)
-
-@app.route('/chat/<int:chat_id>/leave', methods=['POST'])
-@login_required
-def leave_chat(chat_id):
-    chat_room = ChatRoom.query.get_or_404(chat_id)
-    
-    if current_user not in chat_room.members:
-        flash('Вы не состоите в этом чате')
-        return redirect(url_for('dashboard'))
-    
-    user_role = current_user.get_role_in_chat(chat_id)
-    
-    # Владелец не может покинуть чат - должен сначала передать права
-    if user_role == 'owner':
-        flash('Владелец не может покинуть чат. Сначала передайте права другому участнику.')
-        return redirect(url_for('chat_members', chat_id=chat_id))
-    
-    # Удаляем пользователя из чата
-    association = UserChatRoom.query.filter_by(
-        user_id=current_user.id,
-        chat_room_id=chat_id
-    ).first()
-    
-    if association:
-        db.session.delete(association)
-        db.session.commit()
-        flash('Вы покинули чат')
-    
-    return redirect(url_for('dashboard'))
-
-@app.route('/chat/<int:chat_id>/change_role', methods=['POST'])
-@login_required
-def change_member_role(chat_id):
-    chat_room = ChatRoom.query.get_or_404(chat_id)
-    
-    user_role = current_user.get_role_in_chat(chat_id)
-    if user_role != 'owner':
-        flash('Только владелец может изменять роли участников')
-        return redirect(url_for('chat_members', chat_id=chat_id))
-    
-    target_user_id = request.form.get('user_id')
-    new_role = request.form.get('role')
-    
-    if not target_user_id or not new_role:
-        flash('Неверные данные')
-        return redirect(url_for('chat_members', chat_id=chat_id))
-    
-    # Нельзя изменить роль владельца
-    if int(target_user_id) == current_user.id:
-        flash('Нельзя изменить свою роль владельца')
-        return redirect(url_for('chat_members', chat_id=chat_id))
-    
-    association = UserChatRoom.query.filter_by(
-        user_id=target_user_id,
-        chat_room_id=chat_id
-    ).first()
-    
-    if association:
-        association.role = new_role
-        db.session.commit()
-        flash('Роль пользователя обновлена')
-    
-    return redirect(url_for('chat_members', chat_id=chat_id))
-
-@app.route('/chat/<int:chat_id>/transfer_ownership', methods=['POST'])
-@login_required
-def transfer_ownership(chat_id):
-    chat_room = ChatRoom.query.get_or_404(chat_id)
-    
-    user_role = current_user.get_role_in_chat(chat_id)
-    if user_role != 'owner':
-        flash('Только владелец может передать права')
-        return redirect(url_for('chat_members', chat_id=chat_id))
-    
-    new_owner_id = request.form.get('new_owner_id')
-    
-    if not new_owner_id:
-        flash('Не выбран новый владелец')
-        return redirect(url_for('chat_members', chat_id=chat_id))
-    
-    # Находим ассоциации
-    current_owner_assoc = UserChatRoom.query.filter_by(
-        user_id=current_user.id,
-        chat_room_id=chat_id
-    ).first()
-    
-    new_owner_assoc = UserChatRoom.query.filter_by(
-        user_id=new_owner_id,
-        chat_room_id=chat_id
-    ).first()
-    
-    if not new_owner_assoc:
-        flash('Пользователь не найден в чате')
-        return redirect(url_for('chat_members', chat_id=chat_id))
-    
-    # Меняем роли
-    current_owner_assoc.role = 'admin'
-    new_owner_assoc.role = 'owner'
-    
-    db.session.commit()
-    flash('Права владельца переданы')
-    return redirect(url_for('chat_members', chat_id=chat_id))
-
-@app.route('/chat/<int:chat_id>/remove_member', methods=['POST'])
-@login_required
-def remove_member(chat_id):
-    chat_room = ChatRoom.query.get_or_404(chat_id)
-    
-    user_role = current_user.get_role_in_chat(chat_id)
-    if user_role not in ['owner', 'admin']:
-        flash('Недостаточно прав для удаления участников')
-        return redirect(url_for('chat_members', chat_id=chat_id))
-    
-    target_user_id = request.form.get('user_id')
-    
-    if not target_user_id:
-        flash('Не выбран пользователь')
-        return redirect(url_for('chat_members', chat_id=chat_id))
-    
-    target_user_role = UserChatRoom.query.filter_by(
-        user_id=target_user_id,
-        chat_room_id=chat_id
-    ).first()
-    
-    if not target_user_role:
-        flash('Пользователь не найден в чате')
-        return redirect(url_for('chat_members', chat_id=chat_id))
-    
-    # Проверки прав
-    if target_user_role.role == 'owner':
-        flash('Нельзя удалить владельца')
-        return redirect(url_for('chat_members', chat_id=chat_id))
-    
-    if target_user_role.role == 'admin' and user_role != 'owner':
-        flash('Только владелец может удалять администраторов')
-        return redirect(url_for('chat_members', chat_id=chat_id))
-    
-    # Удаляем пользователя
-    db.session.delete(target_user_role)
-    db.session.commit()
-    flash('Пользователь удален из чата')
-    
-    return redirect(url_for('chat_members', chat_id=chat_id))
-
-# Обновленный маршрут создания чата
-@app.route('/create_chat', methods=['POST'])
-@login_required
-def create_chat():
-    chat_name = request.form.get('chat_name')
-    chat_type = request.form.get('chat_type', 'group')
-    is_private = request.form.get('is_private') == 'on'
-    
-    is_channel = chat_type == 'channel'
-    is_direct = chat_type == 'direct'
-    
-    code = None
-    invite_link = None
-    
-    if is_private:
-        code = generate_code()
-        while ChatRoom.query.filter_by(code=code).first():
-            code = generate_code()
-    
-    if chat_type in ['channel', 'private_channel']:
-        invite_link = generate_invite_link()
-        while ChatRoom.query.filter_by(invite_link=invite_link).first():
-            invite_link = generate_invite_link()
-    
-    new_chat = ChatRoom(
-        name=chat_name,
-        is_private=is_private,
-        is_channel=is_channel,
-        is_direct=is_direct,
-        code=code,
-        invite_link=invite_link,
-        created_by=current_user.id
-    )
-    
-    db.session.add(new_chat)
-    db.session.flush()  # Получаем ID нового чата
-    
-    # Добавляем создателя как владельца
-    owner_association = UserChatRoom(
-        user_id=current_user.id,
-        chat_room_id=new_chat.id,
-        role='owner'
-    )
-    db.session.add(owner_association)
-    
-    db.session.commit()
-    
-    flash('Чат создан успешно!')
-    return redirect(url_for('dashboard'))
-
-# Обновленный WebSocket обработчик для проверки прав
-@socketio.on('send_message')
-def handle_send_message(data):
+def process_yoomoney_payment(payment_id):
     try:
-        room = data['room']
-        chat_room = ChatRoom.query.get(room)
+        headers = {
+            'Authorization': f'Bearer {YOOMONEY_ACCESS_TOKEN}',
+            'Content-Type': 'application/x-www-form-urlencoded'
+        }
         
-        if not chat_room:
-            emit('error', {'message': 'Чат не найден'})
-            return
-        
-        # Проверяем права на отправку сообщений
-        if not chat_room.can_user_send_messages(current_user.id):
-            emit('error', {'message': 'У вас нет прав для отправки сообщений в этот чат'})
-            return
-        
-        content = data['message']
-        message_type = data.get('type', 'text')
-        file_path = data.get('file_path')
-        file_name = data.get('file_name')
-        file_size = data.get('file_size')
-        duration = data.get('duration')
-        
-        new_message = Message(
-            content=content,
-            user_id=current_user.id,
-            chat_room_id=room,
-            message_type=message_type,
-            file_path=file_path,
-            file_name=file_name,
-            file_size=file_size,
-            duration=duration
+        response = requests.post(
+            'https://yoomoney.ru/api/process-payment',
+            data={'request_id': payment_id},
+            headers=headers
         )
         
-        db.session.add(new_message)
-        db.session.commit()
-        
-        emit('new_message', {
-            'id': new_message.id,
-            'content': new_message.content,
-            'user_id': current_user.id,
-            'user_email': current_user.email,
-            'user_avatar': current_user.avatar,
-            'user_badge': current_user.badge,
-            'timestamp': new_message.timestamp.isoformat(),
-            'type': message_type,
-            'file_path': file_path,
-            'file_name': file_name,
-            'file_size': file_size,
-            'duration': duration
-        }, room=room)
+        return response.status_code == 200
         
     except Exception as e:
-        emit('error', {'message': str(e)})
-
-# Существующие маршруты
-@app.route('/search_users')
-@login_required
-def search_users():
-    query = request.args.get('q', '')
-    if query:
-        users = User.query.filter(
-            (User.username.ilike(f'%{query}%')) | 
-            (User.email.ilike(f'%{query}%'))
-        ).filter(User.id != current_user.id).limit(20).all()
-        return jsonify([user.to_dict() for user in users])
-    return jsonify([])
-
-@app.route('/create_dm/<int:user_id>')
-@login_required
-def create_dm(user_id):
-    target_user = User.query.get_or_404(user_id)
-    
-    existing_dm = ChatRoom.query.filter(
-        ((ChatRoom.user1_id == current_user.id) & (ChatRoom.user2_id == user_id)) |
-        ((ChatRoom.user1_id == user_id) & (ChatRoom.user2_id == current_user.id))
-    ).first()
-    
-    if existing_dm:
-        return redirect(url_for('chat', chat_id=existing_dm.id))
-    
-    dm = ChatRoom(
-        name=f'{current_user.username} & {target_user.username}',
-        is_direct=True,
-        user1_id=current_user.id,
-        user2_id=user_id
-    )
-    
-    db.session.add(dm)
-    db.session.flush()
-    
-    # Добавляем обоих пользователей как участников
-    user1_assoc = UserChatRoom(user_id=current_user.id, chat_room_id=dm.id, role='member')
-    user2_assoc = UserChatRoom(user_id=user_id, chat_room_id=dm.id, role='member')
-    
-    db.session.add(user1_assoc)
-    db.session.add(user2_assoc)
-    db.session.commit()
-    
-    return redirect(url_for('chat', chat_id=dm.id))
-
-@app.route('/profile/<username>')
-@login_required
-def user_profile(username):
-    user = User.query.filter_by(username=username).first_or_404()
-    return render_template('user_profile.html', user=user)
-
-# Google OAuth маршруты
-@app.route('/login/google')
-def google_login():
-    redirect_uri = url_for('google_authorize', _external=True)
-    return google.authorize_redirect(redirect_uri)
-
-@app.route('/login/google/authorize')
-def google_authorize():
-    try:
-        token = google.authorize_access_token()
-        user_info = token.get('userinfo')
-        
-        if user_info:
-            user = User.query.filter_by(google_id=user_info['sub']).first()
-            if not user:
-                user = User.query.filter_by(email=user_info['email']).first()
-                if user:
-                    user.google_id = user_info['sub']
-                else:
-                    user = User(
-                        google_id=user_info['sub'],
-                        email=user_info['email'],
-                        username=user_info['email'].split('@')[0],
-                        avatar=user_info.get('picture', 'default.png')
-                    )
-                    db.session.add(user)
-            
-            db.session.commit()
-            login_user(user, remember=True)
-            return redirect(url_for('dashboard'))
-    
-    except Exception as e:
-        flash(f'Ошибка авторизации через Google: {str(e)}')
-    
-    return redirect(url_for('login'))
-
-# WebSocket события
-@socketio.on('connect')
-def handle_connect():
-    if current_user.is_authenticated:
-        current_user.online = True
-        current_user.last_seen = datetime.utcnow()
-        db.session.commit()
-        emit('user_status', {
-            'user_id': current_user.id,
-            'online': True,
-            'status': 'online'
-        }, broadcast=True)
-
-@socketio.on('disconnect')
-def handle_disconnect():
-    if current_user.is_authenticated:
-        current_user.online = False
-        current_user.last_seen = datetime.utcnow()
-        db.session.commit()
-        emit('user_status', {
-            'user_id': current_user.id,
-            'online': False,
-            'status': 'offline'
-        }, broadcast=True)
-
-@socketio.on('join_room')
-def handle_join_room(data):
-    room = data['room']
-    join_room(room)
-    emit('user_joined', {
-        'user': current_user.email,
-        'message': f'{current_user.email} присоединился к чату'
-    }, room=room)
-
-@socketio.on('leave_room')
-def handle_leave_room(data):
-    room = data['room']
-    leave_room(room)
-    emit('user_left', {
-        'user': current_user.email,
-        'message': f'{current_user.email} покинул чат'
-    }, room=room)
-
-@socketio.on('typing')
-def handle_typing(data):
-    room = data['room']
-    emit('user_typing', {
-        'user': current_user.email,
-        'typing': data['typing']
-    }, room=room, include_self=False)
-
-@socketio.on('voice_message')
-def handle_voice_message(data):
-    try:
-        room = data['room']
-        chat_room = ChatRoom.query.get(room)
-        
-        if not chat_room or not chat_room.can_user_send_messages(current_user.id):
-            emit('error', {'message': 'У вас нет прав для отправки сообщений'})
-            return
-            
-        audio_data = data['audio_data']
-        duration = data['duration']
-        
-        filename = f"voice_{current_user.id}_{datetime.utcnow().strftime('%Y%m%d_%H%M%S')}.webm"
-        filepath = os.path.join(app.config['VOICE_FOLDER'], filename)
-        
-        audio_bytes = base64.b64decode(audio_data.split(',')[1])
-        with open(filepath, 'wb') as f:
-            f.write(audio_bytes)
-        
-        voice_message = Message(
-            content="🎤 Голосовое сообщение",
-            user_id=current_user.id,
-            chat_room_id=room,
-            message_type='voice',
-            file_path=f'/uploads/voice/{filename}',
-            duration=duration
-        )
-        db.session.add(voice_message)
-        db.session.commit()
-        
-        emit('new_message', {
-            'id': voice_message.id,
-            'content': voice_message.content,
-            'user_id': current_user.id,
-            'user_email': current_user.email,
-            'user_avatar': current_user.avatar,
-            'user_badge': current_user.badge,
-            'timestamp': voice_message.timestamp.isoformat(),
-            'type': 'voice',
-            'file_path': f'/uploads/voice/{filename}',
-            'duration': duration
-        }, room=room)
-        
-    except Exception as e:
-        emit('error', {'message': f'Voice error: {str(e)}'})
-
-# WebSocket события для видеозвонков
-@socketio.on('join_call')
-def handle_join_call(data):
-    room = data['room']
-    join_room(room)
-    
-    emit('user_joined_call', {
-        'user_id': current_user.id,
-        'username': current_user.username
-    }, room=room, include_self=False)
-    
-    print(f"📞 Пользователь {current_user.username} присоединился к звонку {room}")
-
-@socketio.on('leave_call')
-def handle_leave_call(data):
-    room = data['room']
-    
-    emit('user_left_call', {
-        'user_id': current_user.id,
-        'username': current_user.username
-    }, room=room, include_self=False)
-    
-    leave_room(room)
-    print(f"📞 Пользователь {current_user.username} покинул звонок {room}")
-
-@socketio.on('webrtc_offer')
-def handle_webrtc_offer(data):
-    room = data['room']
-    emit('webrtc_offer', {
-        'offer': data['offer'],
-        'from_user': current_user.id
-    }, room=room, include_self=False)
-    print(f"📨 OFFER отправлен в комнату {room}")
-
-@socketio.on('webrtc_answer')
-def handle_webrtc_answer(data):
-    room = data['room']
-    target_user = data.get('to_user')
-    
-    if target_user:
-        emit('webrtc_answer', {
-            'answer': data['answer'],
-            'from_user': current_user.id
-        }, room=request.sid)
-    else:
-        emit('webrtc_answer', {
-            'answer': data['answer'],
-            'from_user': current_user.id
-        }, room=room, include_self=False)
-    print(f"📨 ANSWER отправлен в комнату {room}")
-
-@socketio.on('webrtc_ice_candidate')
-def handle_webrtc_ice_candidate(data):
-    room = data['room']
-    emit('webrtc_ice_candidate', {
-        'candidate': data['candidate'],
-        'from_user': current_user.id
-    }, room=room, include_self=False)
-    print(f"🧊 ICE кандидат отправлен в комнату {room}")
-
-@socketio.on('webrtc_error')
-def handle_webrtc_error(data):
-    room = data['room']
-    emit('webrtc_error', {
-        'error': data['error'],
-        'from_user': current_user.id
-    }, room=room)
+        return False
 
 # Основные маршруты
 @app.route('/')
@@ -933,11 +331,13 @@ def login():
         
         if user and user.check_password(password):
             user.online = True
+            user.last_seen = datetime.utcnow()
+            user.check_premium()  # Проверяем статус премиума
             db.session.commit()
             login_user(user, remember=True)
             return redirect(url_for('dashboard'))
         else:
-            flash('Неверный email или пароль')
+            flash('Неверные учетные данные')
     
     return render_template('login.html')
 
@@ -951,23 +351,31 @@ def register():
         username = request.form.get('username')
         password = request.form.get('password')
         confirm_password = request.form.get('confirm_password')
+        stay_anonymous = request.form.get('stay_anonymous') == 'on'
         
         if password != confirm_password:
             flash('Пароли не совпадают')
             return redirect(url_for('register'))
         
         if User.query.filter_by(email=email).first():
-            flash('Пользователь с таким email уже существует')
+            flash('Этот email уже используется')
             return redirect(url_for('register'))
         
-        user = User(email=email, username=username)
+        if stay_anonymous or not username:
+            username = generate_anonymous_name()
+        
+        user = User(
+            email=email, 
+            username=username,
+            display_name=username,
+            is_anonymous=stay_anonymous
+        )
         user.set_password(password)
-        user.avatar = random.choice(['avatar1.png', 'avatar2.png', 'avatar3.png', 'avatar4.png'])
         
         db.session.add(user)
         db.session.commit()
         
-        flash('Регистрация прошла успешно')
+        flash('Аккаунт создан! Добро пожаловать в DELTA.')
         return redirect(url_for('login'))
     
     return render_template('register.html')
@@ -976,27 +384,15 @@ def register():
 @login_required
 def dashboard():
     user_chat_rooms = current_user.chat_rooms
+    current_user.check_premium()  # Обновляем статус премиума
     return render_template('dashboard.html', chat_rooms=user_chat_rooms)
 
 @app.route('/profile', methods=['GET', 'POST'])
 @login_required
 def profile():
     if request.method == 'POST':
-        username = request.form.get('username')
-        status = request.form.get('status')
-        bio = request.form.get('bio')
-        phone = request.form.get('phone')
-        
-        if username and username != current_user.username:
-            existing_user = User.query.filter_by(username=username).first()
-            if existing_user and existing_user.id != current_user.id:
-                flash('Этот username уже занят')
-            else:
-                current_user.username = username
-        
-        current_user.status = status
-        current_user.bio = bio
-        current_user.phone = phone
+        display_name = request.form.get('display_name')
+        current_user.display_name = display_name
         
         if 'avatar' in request.files:
             avatar_file = request.files['avatar']
@@ -1012,6 +408,185 @@ def profile():
     
     return render_template('profile.html')
 
+@app.route('/premium')
+@login_required
+def premium():
+    current_user.check_premium()
+    return render_template('premium.html', 
+                         premium_prices=PREMIUM_PRICES,
+                         currency_rates=CURRENCY_RATES,
+                         user_premium=current_user.is_premium,
+                         premium_expires=current_user.premium_expires)
+
+@app.route('/buy_currency', methods=['POST'])
+@login_required
+def buy_currency():
+    amount_rub = int(request.form.get('amount'))
+    payment_method = request.form.get('payment_method', 'yoomoney')
+    
+    if amount_rub not in CURRENCY_RATES:
+        flash('Неверная сумма пополнения')
+        return redirect(url_for('premium'))
+    
+    currency_amount = CURRENCY_RATES[amount_rub]
+    
+    # Создаем транзакцию
+    transaction = Transaction(
+        user_id=current_user.id,
+        amount=amount_rub,
+        currency_amount=currency_amount,
+        payment_method=payment_method,
+        status='pending'
+    )
+    db.session.add(transaction)
+    db.session.flush()
+    
+    # Создаем платеж в ЮMoney
+    if payment_method == 'yoomoney':
+        payment_result = create_yoomoney_payment(
+            amount_rub,
+            f'Пополнение DELTA Coins: {currency_amount}',
+            current_user.id
+        )
+        
+        if payment_result['success']:
+            transaction.payment_id = payment_result['payment_id']
+            db.session.commit()
+            # Перенаправляем на страницу оплаты ЮMoney
+            return redirect(payment_result['payment_url'])
+        else:
+            flash('Ошибка создания платежа')
+            return redirect(url_for('premium'))
+    
+    # Для других методов оплаты (заглушка)
+    elif payment_method in ['card', 'crypto']:
+        transaction.status = 'completed'
+        current_user.currency += currency_amount
+        db.session.commit()
+        flash(f'Баланс пополнен на {currency_amount} DELTA Coins!')
+        return redirect(url_for('premium'))
+    
+    db.session.commit()
+    return redirect(url_for('premium'))
+
+@app.route('/payment_callback')
+@login_required
+def payment_callback():
+    payment_id = request.args.get('payment_id')
+    status = request.args.get('status')
+    
+    transaction = Transaction.query.filter_by(payment_id=payment_id, user_id=current_user.id).first()
+    
+    if transaction and status == 'success':
+        transaction.status = 'completed'
+        current_user.currency += transaction.currency_amount
+        db.session.commit()
+        flash('Оплата прошла успешно! Баланс пополнен.')
+    else:
+        flash('Ошибка оплаты. Попробуйте еще раз.')
+    
+    return redirect(url_for('premium'))
+
+@app.route('/purchase_premium', methods=['POST'])
+@login_required
+def purchase_premium():
+    months = int(request.form.get('months'))
+    
+    if months not in PREMIUM_PRICES:
+        flash('Неверный период подписки')
+        return redirect(url_for('premium'))
+    
+    cost = PREMIUM_PRICES[months]
+    
+    if current_user.currency < cost:
+        flash('Недостаточно DELTA Coins')
+        return redirect(url_for('premium'))
+    
+    # Списываем валюту
+    current_user.currency -= cost
+    
+    # Активируем премиум
+    if current_user.premium_expires and current_user.premium_expires > datetime.utcnow():
+        new_expires = current_user.premium_expires + timedelta(days=30*months)
+    else:
+        new_expires = datetime.utcnow() + timedelta(days=30*months)
+    
+    current_user.premium_expires = new_expires
+    current_user.is_premium = True
+    
+    # Активируем все премиум функции
+    premium_features = {
+        'large_files': True,
+        'advanced_chat': True,
+        'unlimited_history': True,
+        'premium_stickers': True,
+        'custom_themes': True,
+        'priority_support': True,
+        'large_groups': True,
+        'advanced_privacy': True
+    }
+    current_user.premium_features = json.dumps(premium_features)
+    
+    # Записываем покупку
+    purchase = PremiumPurchase(
+        user_id=current_user.id,
+        months=months,
+        currency_cost=cost
+    )
+    db.session.add(purchase)
+    db.session.commit()
+    
+    flash(f'DELTA Premium активирован на {months} месяцев!')
+    return redirect(url_for('premium'))
+
+@app.route('/create_chat', methods=['POST'])
+@login_required
+def create_chat():
+    chat_name = request.form.get('chat_name')
+    chat_type = request.form.get('chat_type', 'group')
+    is_private = request.form.get('is_private') == 'on'
+    is_encrypted = request.form.get('is_encrypted') == 'on'
+    
+    # Проверяем лимиты для обычных пользователей
+    if chat_type == 'group' and not current_user.is_premium:
+        user_groups_count = ChatRoom.query.filter_by(created_by=current_user.id, is_channel=False).count()
+        if user_groups_count >= 5:
+            flash('Базовые пользователи могут создавать до 5 групп. Активируйте Premium!')
+            return redirect(url_for('dashboard'))
+    
+    is_channel = chat_type == 'channel'
+    is_direct = chat_type == 'direct'
+    
+    code = None
+    if is_private:
+        code = generate_code()
+        while ChatRoom.query.filter_by(code=code).first():
+            code = generate_code()
+    
+    new_chat = ChatRoom(
+        name=chat_name,
+        is_private=is_private,
+        is_channel=is_channel,
+        is_direct=is_direct,
+        code=code,
+        created_by=current_user.id,
+        is_encrypted=is_encrypted
+    )
+    
+    db.session.add(new_chat)
+    db.session.flush()
+    
+    owner_association = UserChatRoom(
+        user_id=current_user.id,
+        chat_room_id=new_chat.id,
+        role='owner'
+    )
+    db.session.add(owner_association)
+    db.session.commit()
+    
+    flash('Чат создан!')
+    return redirect(url_for('dashboard'))
+
 @app.route('/join_chat', methods=['POST'])
 @login_required
 def join_chat():
@@ -1020,7 +595,6 @@ def join_chat():
     
     if chat_room:
         if current_user not in chat_room.members:
-            # Добавляем пользователя как обычного участника
             new_member = UserChatRoom(
                 user_id=current_user.id,
                 chat_room_id=chat_room.id,
@@ -1042,12 +616,12 @@ def chat(chat_id):
     chat_room = ChatRoom.query.get_or_404(chat_id)
     
     if current_user not in chat_room.members:
-        flash('У вас нет доступа к этому чату')
+        flash('Доступ запрещен')
         return redirect(url_for('dashboard'))
     
     messages = Message.query.filter_by(chat_room_id=chat_id)\
         .order_by(Message.timestamp.asc())\
-        .limit(100).all()
+        .limit(get_message_history_limit(current_user)).all()
     
     user_role = current_user.get_role_in_chat(chat_id)
     can_send_messages = chat_room.can_user_send_messages(current_user.id)
@@ -1058,28 +632,145 @@ def chat(chat_id):
                          user_role=user_role,
                          can_send_messages=can_send_messages)
 
-@app.route('/call/<int:chat_id>')
+@app.route('/search_users')
 @login_required
-def video_call(chat_id):
-    chat_room = ChatRoom.query.get_or_404(chat_id)
+def search_users():
+    query = request.args.get('q', '')
+    if query:
+        users = User.query.filter(
+            (User.username.ilike(f'%{query}%')) | 
+            (User.display_name.ilike(f'%{query}%'))
+        ).filter(User.id != current_user.id).limit(20).all()
+        return jsonify([user.to_dict() for user in users])
+    return jsonify([])
+
+@app.route('/create_dm/<int:user_id>')
+@login_required
+def create_dm(user_id):
+    target_user = User.query.get_or_404(user_id)
     
-    if current_user not in chat_room.members:
-        flash('У вас нет доступа к этому чату')
-        return redirect(url_for('dashboard'))
+    existing_dm = ChatRoom.query.filter(
+        ((ChatRoom.user1_id == current_user.id) & (ChatRoom.user2_id == user_id)) |
+        ((ChatRoom.user1_id == user_id) & (ChatRoom.user2_id == current_user.id))
+    ).first()
     
-    return render_template('call.html', chat_room=chat_room)
+    if existing_dm:
+        return redirect(url_for('chat', chat_id=existing_dm.id))
+    
+    dm = ChatRoom(
+        name=f'{current_user.get_display_name()} & {target_user.get_display_name()}',
+        is_direct=True,
+        user1_id=current_user.id,
+        user2_id=user_id
+    )
+    
+    db.session.add(dm)
+    db.session.flush()
+    
+    user1_assoc = UserChatRoom(user_id=current_user.id, chat_room_id=dm.id, role='member')
+    user2_assoc = UserChatRoom(user_id=user_id, chat_room_id=dm.id, role='member')
+    
+    db.session.add(user1_assoc)
+    db.session.add(user2_assoc)
+    db.session.commit()
+    
+    return redirect(url_for('chat', chat_id=dm.id))
 
-@app.route('/uploads/voice/<filename>')
-def serve_voice(filename):
-    return send_file(os.path.join(app.config['VOICE_FOLDER'], filename))
+# WebSocket события
+@socketio.on('connect')
+def handle_connect():
+    if current_user.is_authenticated:
+        current_user.online = True
+        current_user.last_seen = datetime.utcnow()
+        db.session.commit()
+        emit('user_status', {
+            'user_id': current_user.id,
+            'online': True
+        }, broadcast=True)
 
-@app.route('/uploads/<filename>')
-def uploaded_file(filename):
-    return send_file(os.path.join(app.config['UPLOAD_FOLDER'], filename))
+@socketio.on('disconnect')
+def handle_disconnect():
+    if current_user.is_authenticated:
+        current_user.online = False
+        current_user.last_seen = datetime.utcnow()
+        db.session.commit()
+        emit('user_status', {
+            'user_id': current_user.id,
+            'online': False
+        }, broadcast=True)
 
-@app.route('/chat_avatars/<filename>')
-def serve_chat_avatar(filename):
-    return send_file(os.path.join(app.config['CHAT_AVATARS_FOLDER'], filename))
+@socketio.on('join_room')
+def handle_join_room(data):
+    room = data['room']
+    join_room(room)
+    emit('user_joined', {
+        'user': current_user.get_display_name(),
+        'message': f'{current_user.get_display_name()} присоединился'
+    }, room=room)
+
+@socketio.on('leave_room')
+def handle_leave_room(data):
+    room = data['room']
+    leave_room(room)
+    emit('user_left', {
+        'user': current_user.get_display_name(),
+        'message': f'{current_user.get_display_name()} покинул чат'
+    }, room=room)
+
+@socketio.on('send_message')
+def handle_send_message(data):
+    try:
+        room = data['room']
+        content = data['message']
+        message_type = data.get('type', 'text')
+        
+        chat_room = ChatRoom.query.get(room)
+        if not chat_room:
+            emit('error', {'message': 'Чат не найден'})
+            return
+        
+        if not chat_room.can_user_send_messages(current_user.id):
+            emit('error', {'message': 'Нет прав для отправки'})
+            return
+        
+        new_message = Message(
+            content=content,
+            user_id=current_user.id,
+            chat_room_id=room,
+            message_type=message_type,
+            is_encrypted=chat_room.is_encrypted
+        )
+        
+        db.session.add(new_message)
+        db.session.commit()
+        
+        # Добавляем премиум бейдж к имени если есть премиум
+        display_name = current_user.get_display_name()
+        if current_user.is_premium:
+            display_name = f"⭐ {display_name}"
+        
+        emit('new_message', {
+            'id': new_message.id,
+            'content': new_message.content,
+            'user_id': current_user.id,
+            'user_name': display_name,
+            'user_avatar': current_user.avatar,
+            'timestamp': new_message.timestamp.isoformat(),
+            'type': message_type,
+            'is_encrypted': chat_room.is_encrypted,
+            'is_premium': current_user.is_premium
+        }, room=room)
+        
+    except Exception as e:
+        emit('error', {'message': f'Ошибка: {str(e)}'})
+
+@socketio.on('typing')
+def handle_typing(data):
+    room = data['room']
+    emit('user_typing', {
+        'user': current_user.get_display_name(),
+        'typing': data['typing']
+    }, room=room, include_self=False)
 
 @app.route('/upload_file', methods=['POST'])
 @login_required
@@ -1092,10 +783,18 @@ def upload_file():
         return jsonify({'error': 'No selected file'}), 400
     
     try:
+        # Проверяем размер файла
+        file.seek(0, 2)  # Перемещаемся в конец файла
+        file_size = file.tell()
+        file.seek(0)  # Возвращаемся в начало
+        
+        max_size = get_max_file_size(current_user)
+        if file_size > max_size:
+            return jsonify({'error': f'Файл слишком большой. Максимум: {max_size//1024//1024}MB'}), 400
+        
         filename = secure_filename(file.filename)
         file_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
         file.save(file_path)
-        file_size = os.path.getsize(file_path)
         
         return jsonify({
             'success': True,
@@ -1106,10 +805,15 @@ def upload_file():
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
+@app.route('/uploads/<filename>')
+def uploaded_file(filename):
+    return send_file(os.path.join(app.config['UPLOAD_FOLDER'], filename))
+
 @app.route('/logout')
 @login_required
 def logout():
     current_user.online = False
+    current_user.last_seen = datetime.utcnow()
     db.session.commit()
     logout_user()
     return redirect(url_for('login'))
@@ -1119,89 +823,39 @@ with app.app_context():
     try:
         db.create_all()
         
-        # Проверяем существование новых колонок
-        from sqlalchemy import inspect
-        inspector = inspect(db.engine)
-        columns = [col['name'] for col in inspector.get_columns('user')]
-        
-        if 'badge' not in columns:
-            db.engine.execute('ALTER TABLE user ADD COLUMN badge VARCHAR(20) DEFAULT ""')
-            print("Added badge column to user table")
-        
-        if 'is_super_admin' not in columns:
-            db.engine.execute('ALTER TABLE user ADD COLUMN is_super_admin BOOLEAN DEFAULT FALSE')
-            print("Added is_super_admin column to user table")
-        
-        # Создаем супер-админа если его нет
-        admin_user = User.query.filter_by(email='admin@freedomchat.com').first()
-        if admin_user:
-            admin_user.is_super_admin = True
-            admin_user.badge = 'red'
-            admin_user.is_admin = True
-        
-        # Создаем тестовых пользователей если их нет
-        if not User.query.filter_by(email='admin@freedomchat.com').first():
+        # Создаем тестовых пользователей
+        if not User.query.filter_by(email='admin@delta.chat').first():
             admin = User(
-                email='admin@freedomchat.com',
-                username='Admin',
+                email='admin@delta.chat',
+                username='DeltaAdmin',
+                display_name='System',
+                is_anonymous=False,
                 is_admin=True,
-                is_super_admin=True,
-                badge='red'
+                is_premium=True,
+                premium_expires=datetime.utcnow() + timedelta(days=365)
             )
-            admin.set_password('Admin123!')
+            admin.set_password('Delta2024!')
             db.session.add(admin)
         
-        if not User.query.filter_by(email='test@example.com').first():
-            test_user = User(email='test@example.com', username='testuser')
-            test_user.set_password('123456')
+        if not User.query.filter_by(email='test@delta.chat').first():
+            test_user = User(
+                email='test@delta.chat',
+                username='Shadow_Walker_42',
+                display_name='Shadow',
+                is_anonymous=True
+            )
+            test_user.set_password('test123')
             db.session.add(test_user)
         
-        # Создаем тестового админа
-        if not User.query.filter_by(email='moderator@freedomchat.com').first():
-            moderator = User(
-                email='moderator@freedomchat.com',
-                username='Moderator',
-                is_admin=True,
-                badge='purple'
-            )
-            moderator.set_password('Moderator123!')
-            db.session.add(moderator)
-        
         db.session.commit()
-        print("Database initialized successfully")
+        print("✅ DELTA Database initialized")
         
     except Exception as e:
-        print(f"Database initialization error: {e}")
-        db.drop_all()
-        db.create_all()
-        
-        admin = User(
-            email='admin@freedomchat.com',
-            username='Admin',
-            is_admin=True,
-            is_super_admin=True,
-            badge='red'
-        )
-        admin.set_password('Admin123!')
-        
-        test_user = User(email='test@example.com', username='testuser')
-        test_user.set_password('123456')
-        
-        moderator = User(
-            email='moderator@freedomchat.com',
-            username='Moderator',
-            is_admin=True,
-            badge='purple'
-        )
-        moderator.set_password('Moderator123!')
-        
-        db.session.add(admin)
-        db.session.add(test_user)
-        db.session.add(moderator)
-        db.session.commit()
-        print("Database recreated successfully")
+        print(f"❌ Database error: {e}")
+        db.session.rollback()
 
 if __name__ == '__main__':
-    port = int(os.environ.get('PORT', 5001))
+    port = int(os.environ.get('PORT', 5000))
     debug = os.environ.get('FLASK_DEBUG', 'False').lower() == 'true'
+    print(f"🚀 DELTA Messenger starting on port {port}")
     socketio.run(app, host='0.0.0.0', port=port, debug=debug, allow_unsafe_werkzeug=True)
